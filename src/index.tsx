@@ -1,7 +1,9 @@
 import { NativeModules } from 'react-native';
 
+type SocksPortNumber = number;
 type TorType = {
-  multiply(a: number, b: number): Promise<number>;
+  startDaemon(): Promise<SocksPortNumber>;
+  stopDaemon(): Promise<void>;
 };
 
 const { Tor } = NativeModules;
