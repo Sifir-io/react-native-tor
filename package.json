@@ -34,13 +34,13 @@
     "ios",
     "android"
   ],
-  "repository": "https://github.com/gabidi/react-native-tor",
+  "repository": "",
   "author": "gabidi <gabidi@gmail.com> (https://github.com/gabidi)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/gabidi/react-native-tor/issues"
+    "url": "https://github.com/Sifir-io/react-native-tor/issues"
   },
-  "homepage": "https://github.com/gabidi/react-native-tor#readme",
+  "homepage": "https://github.com/Sifir-io/react-native-tor/",
   "devDependencies": {
     "@commitlint/config-conventional": "^8.3.4",
     "@react-native-community/bob": "^0.16.2",

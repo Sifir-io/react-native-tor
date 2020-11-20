@@ -1,9 +1,19 @@
-#import <React/RCTBridgeModule.h>
+#import "React/RCTBridgeModule.h"
 
-@interface RCT_EXTERN_MODULE(Tor, NSObject)
+@interface RCT_EXTERN_REMAP_MODULE(TorBridge, Tor, NSObject)
 
-RCT_EXTERN_METHOD(multiply:(float)a withB:(float)b
-                 withResolver:(RCTPromiseResolveBlock)resolve
-                 withRejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(
+                  startDaemon:(RCTPromiseResolveBlock)resolve
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
+RCT_EXTERN_METHOD(
+                  stopDaemon:(RCTPromiseResolveBlock)resolve
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
 
+RCT_EXTERN_METHOD(
+                  getOnionUrl:(NSString*)url
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
 @end

@@ -4,8 +4,9 @@ type SocksPortNumber = number;
 type TorType = {
   startDaemon(): Promise<SocksPortNumber>;
   stopDaemon(): Promise<void>;
+  getOnionUrl(url: string): Promise<string>;
 };
 
-const { Tor } = NativeModules;
+const { TorBridge } = NativeModules;
 
-export default Tor as TorType;
+export default TorBridge as TorType;

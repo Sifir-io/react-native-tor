@@ -11,11 +11,11 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => "9.0" }
-  s.source       = { :git => "https://github.com/gabidi/react-native-tor.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/Sifir-io/react-native-tor.git", :tag => "#{s.version}" }
 
   
   s.source_files = "ios/**/*.{h,m,mm,swift}"
-  
+  s.ios.vendored_library = "ios/libsifir_ios.a"
 
   s.dependency "React"
 end
