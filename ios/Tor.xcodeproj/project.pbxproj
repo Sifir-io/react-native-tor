@@ -7,26 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		85C70A3025646C68003FF04C /* libsifir_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 85C70A2E25646C67003FF04C /* libsifir_ios.a */; };
+		85E31CDC25686A4700100FCC /* libsifir_ios_universal.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 85E31CDB25686A4700100FCC /* libsifir_ios_universal.dylib */; };
+		85E31CDD25686A6000100FCC /* libsifir_ios_universal.dylib in CopyFiles */ = {isa = PBXBuildFile; fileRef = 85E31CDB25686A4700100FCC /* libsifir_ios_universal.dylib */; };
 		F4FF95D7245B92E800C19C63 /* Tor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FF95D6245B92E800C19C63 /* Tor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		58B511D91A9E6C8500147676 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
+			buildActionMask = 8;
 			dstPath = "include/$(PRODUCT_NAME)";
 			dstSubfolderSpec = 16;
 			files = (
+				85E31CDD25686A6000100FCC /* libsifir_ios_universal.dylib in CopyFiles */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+			runOnlyForDeploymentPostprocessing = 1;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		855294A225646B1000C35C05 /* libTor.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; name = libTor.a; path = "/Users/ghassanabidi/Projects/react-native-tor/ios/build/Debug-iphoneos/libTor.a"; sourceTree = "<absolute>"; };
 		85C70A2E25646C67003FF04C /* libsifir_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libsifir_ios.a; sourceTree = "<group>"; };
 		85C70A2F25646C67003FF04C /* sifir-tor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "sifir-tor.h"; sourceTree = "<group>"; };
+		85E31CD925686A0100100FCC /* libTor.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libTor.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		85E31CDB25686A4700100FCC /* libsifir_ios_universal.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsifir_ios_universal.dylib; path = library/universal/libsifir_ios_universal.dylib; sourceTree = "<group>"; };
 		B3E7B5891CC2AC0600A0062D /* Tor.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Tor.m; sourceTree = "<group>"; };
 		F4FF95D5245B92E700C19C63 /* Tor-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Tor-Bridging-Header.h"; sourceTree = "<group>"; };
 		F4FF95D6245B92E800C19C63 /* Tor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tor.swift; sourceTree = "<group>"; };
@@ -37,7 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				85C70A3025646C68003FF04C /* libsifir_ios.a in Frameworks */,
+				85E31CDC25686A4700100FCC /* libsifir_ios_universal.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -52,7 +55,17 @@
 				F4FF95D5245B92E700C19C63 /* Tor-Bridging-Header.h */,
 				85C70A2E25646C67003FF04C /* libsifir_ios.a */,
 				85C70A2F25646C67003FF04C /* sifir-tor.h */,
+				85E31CD925686A0100100FCC /* libTor.a */,
+				85E31CDA25686A4700100FCC /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		85E31CDA25686A4700100FCC /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				85E31CDB25686A4700100FCC /* libsifir_ios_universal.dylib */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -72,7 +85,7 @@
 			);
 			name = Tor;
 			productName = RCTDataManager;
-			productReference = 855294A225646B1000C35C05 /* libTor.a */;
+			productReference = 85E31CD925686A0100100FCC /* libTor.a */;
 			productType = "com.apple.product-type.library.static";
 		};
 /* End PBXNativeTarget section */
@@ -224,6 +237,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/library/universal",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = Tor;
@@ -246,6 +260,7 @@
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/library/universal",
 				);
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = Tor;
