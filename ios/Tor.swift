@@ -1,41 +1,96 @@
 @objc(Tor)
 class Tor: NSObject {
     var service:Optional<OpaquePointer> = nil;
-    
-    func getProxiedClient()->URLSession{
+    var proxySocksPort:Optional<UInt16> = nil;
+
+    func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16)->URLSession{
         let config = URLSessionConfiguration.default;
         config.requestCachePolicy = URLRequest.CachePolicy.reloadIgnoringLocalCacheData;
         config.connectionProxyDictionary = [AnyHashable: Any]();
         config.connectionProxyDictionary?[kCFNetworkProxiesHTTPEnable as String] = 1;
         config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyHost as String] = "127.0.0.1";
-        config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyPort as String] = 19032;
+        config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyPort as String] = socksPort;
         config.connectionProxyDictionary?[kCFProxyTypeSOCKS as String] = 1;
+        
+        if let headersPassed = headers {
+            config.httpAdditionalHeaders = headersPassed as? [AnyHashable : Any]
+        }
         return URLSession.init(configuration: config, delegate: nil, delegateQueue: OperationQueue.current)
     }
     
-    @objc(getOnionUrl:resolver:rejecter:)
-    func getOnionUrl(url:String, resolve:@escaping RCTPromiseResolveBlock,reject:@escaping  RCTPromiseRejectBlock){
-        let session = getProxiedClient();
+    
+    @objc(request:method:jsonBody:headers:resolver:rejecter:)
+    func request(url: String, method: String, jsonBody: String, headers: NSDictionary,  resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock){
+        
+        if service == nil {
+            reject("TOR.SERVICE","Tor Service NOT Running. Call `startDaemon` first.",NSError.init(domain: "TOR.DAEMON", code: 99));
+            return;
+        }
+        
+        let session = getProxiedClient(headers:headers,socksPort: proxySocksPort!);
         guard let _url = URL(string:url) else {
-            // FIXME just to test
-            reject("TOR","Could not parse url",NSError.init(domain: "TOR", code: 404));
+            reject("TOR.URL","Could not parse url",NSError.init(domain: "TOR", code: 404));
             return;
         }
         do{
-            let task = session.dataTask(with: _url) {  data, resp, error in
-                guard let dataResp = data , error == nil else {
-                    reject("TOR",error?.localizedDescription,error);
+            switch method{
+            case "get":
+                session.dataTask(with: _url) {  data, resp, error in
+                    guard let dataResp = data , error == nil else {
+                        reject("TOR.RESP",error?.localizedDescription,error);
+                        return;
+                    }
+                    resolve(dataResp.base64EncodedString());
                     return;
-                }
-                resolve(dataResp.base64EncodedString());
-                return;
+                }.resume();
+            case "post":
+                var request = URLRequest(url:_url);
+                request.httpMethod = "POST";
+                session.uploadTask(with: request, from: jsonBody.data(using: .utf8)) {  data, resp, error in
+                    guard let dataResp = data , error == nil else {
+                        reject("TOR.RESP",error?.localizedDescription,error);
+                        return;
+                    }
+                    resolve(dataResp.base64EncodedString());
+                    return;
+                }.resume();
+                
+            default:
+                throw NSError.init(domain:"TOR.METHOD",code:400)
             }
-            task.resume();
+            
         } catch{
-            reject("TOR",error.localizedDescription,error);
+            reject("TOR.GENERAL",error.localizedDescription,error);
             
         }
+        
     }
+    
+    
+    
+    //    @objc(getOnionUrl:resolver:rejecter:)
+    //    func getOnionUrl(url:String, resolve:@escaping RCTPromiseResolveBlock,reject:@escaping  RCTPromiseRejectBlock){
+    //        let session = getProxiedClient();
+    //        guard let _url = URL(string:url) else {
+    //            // FIXME just to test
+    //            reject("TOR","Could not parse url",NSError.init(domain: "TOR", code: 404));
+    //            return;
+    //        }
+    //        do{
+    //            let task = session.dataTask(with: _url) {  data, resp, error in
+    //                guard let dataResp = data , error == nil else {
+    //                    reject("TOR",error?.localizedDescription,error);
+    //                    return;
+    //                }
+    //                resolve(dataResp.base64EncodedString());
+    //                return;
+    //            }
+    //            task.resume();
+    //        } catch{
+    //            reject("TOR",error.localizedDescription,error);
+    //
+    //        }
+    //    }
     
     @objc(startDaemon:rejecter:)
     func startDaemon( resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock)->Void{
@@ -46,13 +101,17 @@ class Tor: NSObject {
         
         do {
             let temporaryDirectoryURL = URL(fileURLWithPath: NSTemporaryDirectory(),isDirectory: true)
+            
+            // TODO pass this and check if avalible
             let socksPort:UInt16 = 19032;
+            
             // this gives file:///Users/.../tmp/ so we remove the file:// prefix and trailing slash
             let path = try String(temporaryDirectoryURL.absoluteString.dropFirst(7).dropLast());
             let call_result = get_owned_TorService(path, socksPort).pointee;
             switch(call_result.message.tag){
             case Success:
                 service = Optional.some(call_result.result);
+                proxySocksPort = socksPort;
                 resolve(socksPort);
                 return;
             case Error:
@@ -82,6 +141,7 @@ class Tor: NSObject {
         if let hasSevice = service {
             shutdown_owned_TorService(hasSevice);
             service = nil
+            proxySocksPort = nil
         }
         resolve(true);
     }
