@@ -8,6 +8,10 @@ export default function App() {
     'http://keybase5wmilwokqirssclfnsqrjdsi7jdir5wy7y7iu3tanwmtp6oid.onion'
   );
 
+  React.useEffect(() => {
+    startTor();
+  }, []);
+
   const startTor = async () => {
     try {
       const port = await TorBridge.startDaemon();
@@ -30,7 +34,7 @@ export default function App() {
   const getOnion = async () => {
     try {
       if (!onion) throw 'No onion detected';
-      let resp = await TorBridge.getOnionUrl(onion);
+      let resp = await TorBridge.get(onion);
       console.log('got resp', resp);
     } catch (err) {
       console.error(err);
