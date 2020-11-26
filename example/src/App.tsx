@@ -5,7 +5,7 @@ import TorBridge from 'react-native-tor';
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
   const [onion, setOnion] = React.useState<string | undefined>(
-    'http://keybase5wmilwokqirssclfnsqrjdsi7jdir5wy7y7iu3tanwmtp6oid.onion'
+    'http://3g2upl4pq6kufc4m.onion'
   );
 
   React.useEffect(() => {
@@ -40,6 +40,23 @@ export default function App() {
       console.error(err);
     }
   };
+  const postOnion = async () => {
+    try {
+      if (!onion) throw 'No onion detected';
+      let resp = await TorBridge.post(onion, JSON.stringify({ q: 'hello' }));
+      console.log('got resp', resp);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const getStatus = async () => {
+    try {
+      let resp = await TorBridge.getDaemonStatus();
+      console.log('got status', resp);
+    } catch (err) {
+      console.error('Error getDeamonStatus', err);
+    }
+  };
   return (
     <View style={styles.container}>
       <View>
@@ -51,6 +68,9 @@ export default function App() {
           <Text>Stop Tor</Text>
         </Button>
 
+        <Button onPress={getStatus} title="Get Status">
+          <Text>Get Daemon Status</Text>
+        </Button>
         {!!socksPort && (
           <View>
             <TextInput
@@ -60,6 +80,9 @@ export default function App() {
             />
             <Button onPress={getOnion} title="Get onion">
               <Text>Get Onion</Text>
+            </Button>
+            <Button onPress={postOnion} title="POST onion">
+              <Text>Post To Onion</Text>
             </Button>
           </View>
         )}

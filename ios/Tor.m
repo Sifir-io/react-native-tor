@@ -18,6 +18,11 @@ RCT_EXTERN_METHOD(
                   )
 
 RCT_EXTERN_METHOD(
+                  getDaemonStatus:(RCTPromiseResolveBlock)resolve
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
+
+RCT_EXTERN_METHOD(
         request:(NSString*)url
         method:(NSString*)method
         jsonBody:(NSString*)jsonBody

@@ -35,7 +35,19 @@ typedef struct {
   ResultMessage message;
 } BoxedResult_OwnedTorService;
 
+typedef struct {
+  RustByteSlice *result;
+  ResultMessage message;
+} BoxedResult_RustByteSlice;
+
+
 BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
+
+/**
+ *# Safety
+ * Get the status of a OwnedTorService
+ */
+BoxedResult_RustByteSlice *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
 
 /**
  *# Safety
