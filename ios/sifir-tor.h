@@ -5,18 +5,13 @@
 
 typedef struct OwnedTorService OwnedTorService_t;
 
-typedef struct {
-  const uint8_t *bytes;
-  uintptr_t len;
-} RustByteSlice;
-
 typedef enum {
   Success,
   Error,
 } ResultMessage_Tag;
 
 typedef struct {
-  RustByteSlice _0;
+  char *_0;
 } Error_Body;
 
 typedef struct {
@@ -35,19 +30,19 @@ typedef struct {
   ResultMessage message;
 } BoxedResult_OwnedTorService;
 
-typedef struct {
-  RustByteSlice *result;
-  ResultMessage message;
-} BoxedResult_RustByteSlice;
-
-
 BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
 
 /**
  *# Safety
  * Get the status of a OwnedTorService
  */
-BoxedResult_RustByteSlice *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
+char *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
+
+/**
+ *# Safety
+ * Destroy a cstr
+ */
+void destroy_cstr(char *c_str);
 
 /**
  *# Safety

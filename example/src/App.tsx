@@ -2,19 +2,20 @@ import * as React from 'react';
 import { StyleSheet, View, Text, Button, TextInput } from 'react-native';
 import TorBridge from 'react-native-tor';
 
+const client = TorBridge();
+
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
   const [onion, setOnion] = React.useState<string | undefined>(
     'http://3g2upl4pq6kufc4m.onion'
   );
-
   React.useEffect(() => {
-    startTor();
+    client.startIfNotStarted();
   }, []);
 
   const startTor = async () => {
     try {
-      const port = await TorBridge.startDaemon();
+      const port = await client.startIfNotStarted();
       console.log('Tor started socks port', port);
       setSocksPort(port);
     } catch (err) {
@@ -24,7 +25,7 @@ export default function App() {
 
   const stopTor = async () => {
     try {
-      await TorBridge.stopDaemon();
+      await client.stopIfRunning();
     } catch (err) {
       console.error(err);
     }
@@ -34,7 +35,7 @@ export default function App() {
   const getOnion = async () => {
     try {
       if (!onion) throw 'No onion detected';
-      let resp = await TorBridge.get(onion);
+      let resp = await client.get(onion);
       console.log('got resp', resp);
     } catch (err) {
       console.error(err);
@@ -43,7 +44,7 @@ export default function App() {
   const postOnion = async () => {
     try {
       if (!onion) throw 'No onion detected';
-      let resp = await TorBridge.post(onion, JSON.stringify({ q: 'hello' }));
+      let resp = await client.post(onion, JSON.stringify({ q: 'hello' }));
       console.log('got resp', resp);
     } catch (err) {
       console.error(err);
@@ -51,7 +52,7 @@ export default function App() {
   };
   const getStatus = async () => {
     try {
-      let resp = await TorBridge.getDaemonStatus();
+      let resp = await client.getDaemonStatus();
       console.log('got status', resp);
     } catch (err) {
       console.error('Error getDeamonStatus', err);
