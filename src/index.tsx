@@ -47,6 +47,11 @@ type TorType = {
     body: RequestBody[RequestMethod.POST],
     headers?: RequestHeaders
   ): Promise<ProcessedRequestResponse>;
+  delete(
+    url: string,
+    body?: RequestBody[RequestMethod.DELETE],
+    headers?: RequestHeaders
+  ): Promise<ProcessedRequestResponse>;
   /** Starts the TorDaemon if not started and returns a promise that fullfills with the socks port number when boostraping is compplete.
    * If the function was previously called it will return the promise without attempting to start the daemon again.
    * Useful when used as a guard in your transport or action layer
