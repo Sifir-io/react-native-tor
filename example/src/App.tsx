@@ -9,10 +9,16 @@ export default function App() {
   const [onion, setOnion] = React.useState<string | undefined>(
     'http://3g2upl4pq6kufc4m.onion'
   );
+  //const [clearnetJson ] = React.useState<string | undefined>(
+  //  'https://api.jsonapi.co/rest/v1/user/list'
+  //);
   React.useEffect(() => {
-    client.startIfNotStarted();
+    _init();
   }, []);
 
+  const _init = async () => {
+    await client.startIfNotStarted();
+  };
   const startTor = async () => {
     try {
       const port = await client.startIfNotStarted();

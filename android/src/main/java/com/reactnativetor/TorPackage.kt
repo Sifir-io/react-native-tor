@@ -10,11 +10,16 @@ import com.facebook.react.uimanager.ViewManager
 import com.facebook.react.bridge.JavaScriptModule
 
 class TorPackage : ReactPackage {
-    override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        return Arrays.asList<NativeModule>(TorModule(reactContext))
-    }
 
-    override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
-        return emptyList<ViewManager<*, *>>()
-    }
+  init {
+    System.loadLibrary("sifir_android");
+  }
+
+  override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
+    return Arrays.asList<NativeModule>(TorModule(reactContext))
+  }
+
+  override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
+    return emptyList<ViewManager<*, *>>()
+  }
 }

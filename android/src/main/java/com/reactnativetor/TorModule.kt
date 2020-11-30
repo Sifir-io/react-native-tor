@@ -1,22 +1,27 @@
 package com.reactnativetor
 
-import com.facebook.react.bridge.Promise
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.bridge.ReactContextBaseJavaModule
-import com.facebook.react.bridge.ReactMethod
+import android.os.AsyncTask
+import android.util.Log
+import com.facebook.react.bridge.*
 import com.sifir.tor.OwnedTorService
 import com.sifir.tor.TorServiceParam
+import okhttp3.OkHttpClient
 import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.util.concurrent.TimeUnit
+import java.net.Proxy;
 
 
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+  private var service: OwnedTorService? = null;
+  private var proxy: Proxy? = null;
+  private var client: OkHttpClient? = null;
+  private var _starting: Boolean = false;
 
-    lateinit var service:OwnedTorService;
-
-    override fun getName(): String {
-        return "Tor"
-    }
+  override fun getName(): String {
+    return "TorBridge"
+  }
 
   private fun findFreePort(): Int {
     var socket: ServerSocket? = null
@@ -39,26 +44,89 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         }
       }
     }
-    throw IllegalStateException("Could not find a free TCP/IP port to start embedded Jetty HTTP Server on")
+    throw Throwable("Could not find a free TCP/IP port for Socks Proxy")
+  }
+
+  @ReactMethod
+  fun request(url: String, method: String, jsonBody: String, headers: ReadableMap, promise: Promise) {
+    if (service == null) {
+      promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+    }
+    try {
+      val param = TaskParam(method, url, jsonBody, headers.toHashMap())
+      TorBridgeAsyncTask(promise, client!!).executeOnExecutor(
+        AsyncTask.THREAD_POOL_EXECUTOR, param
+      )
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on sendRequest$e")
+      promise.reject(e)
+    }
   }
 
 
-    @ReactMethod
-    fun startDaemon(promise: Promise) {
-      if(::service.isInitialized) {
-          service.shutdown()
-      }
+  @ReactMethod
+  fun startDaemon(promise: Promise) {
+    if (service != null) {
+      promise.reject(Throwable("Service already running, call stopDaemon first"))
+    }
+    if (this._starting) {
+      promise.reject(Throwable("Service already starting"))
+    }
+    _starting = true;
+    try {
       val socksPort = findFreePort();
-      val path = System.getProperty("user.dir")
-      service = OwnedTorService(TorServiceParam(path, socksPort))
-      promise.resolve(socksPort);
+      val path = this.reactApplicationContext.cacheDir.toString();
+      val param = StartParam(socksPort, path)
+      TorBridgeStartAsync({
+        service = it
+        proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
+        client = OkHttpClient()
+          .newBuilder()
+          .proxy(proxy)
+          .connectTimeout(7, TimeUnit.SECONDS)
+          .writeTimeout(7, TimeUnit.SECONDS)
+          .readTimeout(7, TimeUnit.SECONDS)
+          .build()
+        _starting = false;
+        promise.resolve(socksPort);
+      }, {
+        _starting = false;
+        promise.reject(it);
+      }).executeOnExecutor(
+        AsyncTask.THREAD_POOL_EXECUTOR, param
+      )
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on sendRequest$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun getDaemonStatus(promise: Promise) {
+    if (_starting) {
+      promise.resolve("STARTING");
+      return;
+    }
+    if (service == null) {
+      promise.resolve("NOTINIT");
+      return;
     }
 
-    @ReactMethod
-    fun stopDaemon(promise: Promise) {
-      if(::service.isInitialized){
-          service.shutdown();
-      }
+    val status = service?.get_status();
+    promise.resolve(status);
+  }
+
+  @ReactMethod
+  fun stopDaemon(promise: Promise) {
+    try {
+      service?.shutdown();
+      service = null
+      proxy = null;
+      client = null;
       promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on stopDaemon$e")
+      promise.reject(e)
     }
+  }
 }
