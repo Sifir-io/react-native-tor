@@ -19,7 +19,7 @@ class Tor: NSObject {
     var service:Optional<OpaquePointer> = nil;
     var proxySocksPort:Optional<UInt16> = nil;
     var starting:Bool = false;
-    
+
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16)->URLSession{
         let config = URLSessionConfiguration.default;
         config.requestCachePolicy = URLRequest.CachePolicy.reloadIgnoringLocalCacheData;
@@ -28,13 +28,13 @@ class Tor: NSObject {
         config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyHost as String] = "127.0.0.1";
         config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyPort as String] = socksPort;
         config.connectionProxyDictionary?[kCFProxyTypeSOCKS as String] = 1;
-        
+
         if let headersPassed = headers {
             config.httpAdditionalHeaders = headersPassed as? [AnyHashable : Any]
         }
         return URLSession.init(configuration: config, delegate: nil, delegateQueue: OperationQueue.current)
     }
-    
+
     func prepareObjResp (data:Data,resp:HTTPURLResponse)->NSObject{
         let jsonObject: NSMutableDictionary = NSMutableDictionary()
         jsonObject.setValue(data.base64EncodedString(), forKey: "b64Data")
@@ -51,18 +51,18 @@ class Tor: NSObject {
                 }
             }
         }
-        
+
         return jsonObject as NSObject;
     }
-    
+
     @objc(request:method:jsonBody:headers:resolver:rejecter:)
     func request(url: String, method: String, jsonBody: String, headers: NSDictionary,  resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock){
-        
+
         if service == nil {
             reject("TOR.SERVICE","Tor Service NOT Running. Call `startDaemon` first.",NSError.init(domain: "TOR.DAEMON", code: 99));
             return;
         }
-        
+
         let session = getProxiedClient(headers:headers,socksPort: proxySocksPort!);
         guard let _url = URL(string:url) else {
             reject("TOR.URL","Could not parse url",NSError.init(domain: "TOR", code: 404));
@@ -72,6 +72,17 @@ class Tor: NSObject {
             switch method{
             case "get":
                 session.dataTask(with: _url) {  data, resp, error in
+                    guard let dataResp = data , error == nil, let respData = resp else {
+                        reject("TOR.RESP",error?.localizedDescription,error);
+                        return;
+                    }
+                    resolve(self.prepareObjResp(data:dataResp,resp:respData as! HTTPURLResponse));
+                    return;
+                }.resume();
+            case "delete":
+                var request = URLRequest(url:_url);
+                request.httpMethod = "DELETE";
+                session.dataTask(with: request) {  data, resp, error in
                     guard let dataResp = data , error == nil, let respData = resp else {
                         reject("TOR.RESP",error?.localizedDescription,error);
                         return;
@@ -90,19 +101,19 @@ class Tor: NSObject {
                     resolve(self.prepareObjResp(data:dataResp,resp:respData as! HTTPURLResponse));
                     return;
                 }.resume();
-                
+
             default:
                 throw NSError.init(domain:"TOR.METHOD",code:400)
             }
-            
+
         } catch{
             reject("TOR.GENERAL",error.localizedDescription,error);
-            
+
         }
-        
+
     }
-    
-    
+
+
     @objc(startDaemon:rejecter:)
     func startDaemon( resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
         if service != nil || starting {
@@ -117,7 +128,7 @@ class Tor: NSObject {
             let socksPort:UInt16 = 19032;
             // this gives file:///Users/.../tmp/ so we remove the file:// prefix and trailing slash
             let path = String(temporaryDirectoryURL.absoluteString.dropFirst(7).dropLast());
-            
+
             // Rust will start Tor daemon thread and block until boostrapped, so run as dispatched async task so not to block this thread
             DispatchQueue.background(background: {
                 defer {
@@ -147,7 +158,7 @@ class Tor: NSObject {
             })
         }
     }
-    
+
     @objc(getDaemonStatus:rejecter:)
     func getDaemonStatus(resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock)->Void {
         guard let daemon = service else {
@@ -159,7 +170,7 @@ class Tor: NSObject {
             }
             return;
         }
-        
+
         if let status = get_status_of_owned_TorService(daemon) {
             defer {
                 destroy_cstr(status);
@@ -169,9 +180,9 @@ class Tor: NSObject {
         } else {
             reject("TOR.STATUS","UNKNOWN",NSError.init(domain: "TOR", code: 99));
         }
-        
+
     }
-    
+
     @objc(stopDaemon:rejecter:)
     func stopDaemon( resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock)->Void {
         if let hasSevice = service {
