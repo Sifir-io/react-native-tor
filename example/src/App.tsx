@@ -6,6 +6,7 @@ const client = TorBridge();
 
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
+  const [trustSSL, setTrustSSL] = React.useState<boolean>(true);
   const [onion, setOnion] = React.useState<string | undefined>(
     'http://3g2upl4pq6kufc4m.onion'
   );
@@ -41,7 +42,7 @@ export default function App() {
   const getOnion = async () => {
     try {
       if (!onion) throw 'No onion detected';
-      let resp = await client.get(onion);
+      let resp = await client.get(onion, undefined, trustSSL);
       console.log('got resp', resp);
     } catch (err) {
       console.error(err);
@@ -50,7 +51,12 @@ export default function App() {
   const postOnion = async () => {
     try {
       if (!onion) throw 'No onion detected';
-      let resp = await client.post(onion, JSON.stringify({ q: 'hello' }));
+      let resp = await client.post(
+        onion,
+        JSON.stringify({ q: 'hello' }),
+        undefined,
+        trustSSL
+      );
       console.log('got resp', resp);
     } catch (err) {
       console.error(err);
@@ -91,6 +97,14 @@ export default function App() {
             <Button onPress={postOnion} title="POST onion">
               <Text>Post To Onion</Text>
             </Button>
+            <View>
+              <Button
+                onPress={() => setTrustSSL(!trustSSL)}
+                title={
+                  trustSSL ? 'Trusting Invalid SSL' : 'Not Trusting Invalid SSL'
+                }
+              />
+            </View>
           </View>
         )}
       </View>

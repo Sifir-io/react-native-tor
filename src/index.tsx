@@ -35,22 +35,29 @@ interface NativeTor {
     url: string,
     method: T,
     data: string, // native side expects string for body
-    headers: RequestHeaders
+    headers: RequestHeaders,
+    trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
 }
 type TorType = {
   /** Shorthand for request for type GET **/
-  get(url: string, headers?: RequestHeaders): Promise<ProcessedRequestResponse>;
+  get(
+    url: string,
+    headers?: RequestHeaders,
+    trustSSL?: boolean
+  ): Promise<ProcessedRequestResponse>;
   /** Shorthand for request for type POST **/
   post(
     url: string,
     body: RequestBody[RequestMethod.POST],
-    headers?: RequestHeaders
+    headers?: RequestHeaders,
+    trustSSL?: boolean
   ): Promise<ProcessedRequestResponse>;
   delete(
     url: string,
     body?: RequestBody[RequestMethod.DELETE],
-    headers?: RequestHeaders
+    headers?: RequestHeaders,
+    trustSSL?: boolean
   ): Promise<ProcessedRequestResponse>;
   /** Starts the TorDaemon if not started and returns a promise that fullfills with the socks port number when boostraping is compplete.
    * If the function was previously called it will return the promise without attempting to start the daemon again.
@@ -141,29 +148,49 @@ export default ({
   }
 
   return {
-    // FIXME i dont think we should export this here since it conflicts with out state managment
-    // if someone calls start daemon directly on the Native module then the promise goes to shit..
-    // ...TorBridge,
-    async get(url: string, headers?: Headers) {
+    async get(url: string, headers?: Headers, trustSSL: boolean = true) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(url, RequestMethod.GET, '', headers || {})
+        await TorBridge.request(
+          url,
+          RequestMethod.GET,
+          '',
+          headers || {},
+          trustSSL
+        )
       );
     },
-    async post(url: string, body: string, headers?: RequestHeaders) {
+    async post(
+      url: string,
+      body: string,
+      headers?: RequestHeaders,
+      trustSSL: boolean = true
+    ) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(url, RequestMethod.POST, body, headers || {})
+        await TorBridge.request(
+          url,
+          RequestMethod.POST,
+          body,
+          headers || {},
+          trustSSL
+        )
       );
     },
-    async delete(url: string, body?: string, headers?: RequestHeaders) {
+    async delete(
+      url: string,
+      body?: string,
+      headers?: RequestHeaders,
+      trustSSL: boolean = true
+    ) {
       await startIfNotStarted();
       return await onAfterRequest(
         await TorBridge.request(
           url,
           RequestMethod.DELETE,
           body || '',
-          headers || {}
+          headers || {},
+          trustSSL
         )
       );
     },

@@ -1,5 +1,14 @@
 import Foundation;
 
+// Trust SSLs even if invalid
+extension Tor:URLSessionDelegate {
+    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+       //Trust the certificate even if not valid
+       let urlCredential = URLCredential(trust: challenge.protectionSpace.serverTrust!)
+       completionHandler(.useCredential, urlCredential)
+    }
+}
+
 extension DispatchQueue {
     static func background(delay: Double = 0.0, background: (()->Void)? = nil, completion: (() -> Void)? = nil) {
         DispatchQueue.global(qos: .background).async {
@@ -19,8 +28,8 @@ class Tor: NSObject {
     var service:Optional<OpaquePointer> = nil;
     var proxySocksPort:Optional<UInt16> = nil;
     var starting:Bool = false;
-    
-    func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16)->URLSession{
+
+    func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
         config.requestCachePolicy = URLRequest.CachePolicy.reloadIgnoringLocalCacheData;
         config.connectionProxyDictionary = [AnyHashable: Any]();
@@ -32,7 +41,11 @@ class Tor: NSObject {
         if let headersPassed = headers {
             config.httpAdditionalHeaders = headersPassed as? [AnyHashable : Any]
         }
-        return URLSession.init(configuration: config, delegate: nil, delegateQueue: OperationQueue.current)
+        if(trustInvalidSSL){
+            return URLSession.init(configuration: config, delegate: self, delegateQueue: nil)
+        } else {
+            return URLSession.init(configuration: config, delegate: nil, delegateQueue: OperationQueue.current)
+        }
     }
     
     func prepareObjResp (data:Data,resp:HTTPURLResponse,resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
@@ -61,15 +74,15 @@ class Tor: NSObject {
         }
     }
     
-    @objc(request:method:jsonBody:headers:resolver:rejecter:)
-    func request(url: String, method: String, jsonBody: String, headers: NSDictionary,  resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock){
+    @objc(request:method:jsonBody:headers:trustInvalidCert:resolver:rejecter:)
+    func request(url: String, method: String, jsonBody: String, headers: NSDictionary, trustInvalidCert:Bool, resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock){
         
         if service == nil {
             reject("TOR.SERVICE","Tor Service NOT Running. Call `startDaemon` first.",NSError.init(domain: "TOR.DAEMON", code: 99));
             return;
         }
         
-        let session = getProxiedClient(headers:headers,socksPort: proxySocksPort!);
+        let session = getProxiedClient(headers:headers,socksPort: proxySocksPort!,trustInvalidSSL:trustInvalidCert);
         guard let _url = URL(string:url) else {
             reject("TOR.URL","Could not parse url",NSError.init(domain: "TOR", code: 404));
             return;
@@ -99,6 +112,19 @@ class Tor: NSObject {
             case "post":
                 var request = URLRequest(url:_url);
                 request.httpMethod = "POST";
+                // If content type header is set for POST check it
+//                // We just look for form url encoded
+//                if let contentType = headers["Content-Type"]{
+//                    switch(contentType as! String){
+//                    case "application/x-www-form-urlencoded":
+//                        request.httpBody = jsonBody.data(using: .utf8);
+//                        break;
+//                    default:
+//                        request.httpBody = jsonBody.data(using: .utf8)
+//                    }
+//                } else {
+//                    request.httpBody = jsonBody.data(using: .utf8)
+//                }
                 session.uploadTask(with: request, from: jsonBody.data(using: .utf8)) {  data, resp, error in
                     guard let dataResp = data , let respData = resp , error == nil  else {
                         reject("TOR.POST",error?.localizedDescription,error);
