@@ -33,18 +33,47 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
 
   @Throws(IOException::class)
   fun run(param: TaskParam): WritableMap {
-    val request: Request.Builder
+    // Create a trust manager that does not validate certificate chains
+    val trustAllCerts: Array<TrustManager> = arrayOf<TrustManager>(
+      object : X509TrustManager() {
+        @Override
+        @kotlin.jvm.Throws(CertificateException::class)
+        fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate?>?, authType: String?) {
+        }
+
+        @Override
+        @kotlin.jvm.Throws(CertificateException::class)
+        fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate?>?, authType: String?) {
+        }
+
+        @get:Override
+        val acceptedIssuers: Array<Any?>?
+          get() = arrayOf<java.security.cert.X509Certificate?>()
+      }
+    )
+
+    // Install the all-trusting trust manager
+    val sslContext: SSLContext = SSLContext.getInstance("SSL")
+    sslContext.init(null, trustAllCerts, SecureRandom())
+    // Create an ssl socket factory with our all-trusting manager
+    val sslSocketFactory: SSLSocketFactory = sslContext.getSocketFactory()
+    val request: OkHttpClient.Builder = Builder()
+    request.sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+    request.hostnameVerifier(object : HostnameVerifier() {
+      @Override
+      fun verify(hostname: String?, session: SSLSession?): Boolean {
+        return true
+      }
+    })
     request = when (param.method.toUpperCase()) {
       "POST" -> {
         // FIXME body should not be empty for post ??
         val body = RequestBody.create(JSON, param.json!!)
-        Request.Builder()
-          .url(param.url)
+        Request.url(param.url)
           .post(body)
       }
-      "GET" -> Request.Builder()
-        .url(param.url)
-      "DELETE" -> Request.Builder().url(param.url).delete()
+      "GET" -> Request.url(param.url)
+      "DELETE" -> Request.url(param.url).delete()
       else -> throw IOException("Invalid method $param.method")
     }
     if (!param.headers.isNullOrEmpty()) {
@@ -57,8 +86,6 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
       val headersMap = Arguments.createMap()
       for ((key, value) in headers.entries) {
         try {
-          // FIXME headers seem to load on duckgo but not on json.
-          // is json header https://api.jsonapi.co/rest/v1/user/list not a List  ?
           if (value is List<*>) {
             headersMap.putArray(key.toString(), Arguments.fromList(headers[key]))
           } else {
@@ -77,7 +104,6 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
         }
       }
       resp.putString("b64Data", Base64.encodeToString(body, Base64.DEFAULT))
-      // FIXME our return type
       return resp
     }
   }
