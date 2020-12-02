@@ -4,10 +4,7 @@ import android.os.AsyncTask
 import android.util.Base64
 import android.util.Log
 import com.facebook.react.bridge.*
-import okhttp3.MediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.*
 import org.json.JSONObject
 import java.io.IOException
 
@@ -18,83 +15,63 @@ class TaskParam(
   val headers: HashMap<String, Any>?
 );
 
-class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client: OkHttpClient) : AsyncTask<TaskParam, String?, WritableMap?>() {
-  protected var error: Exception? = null
-  override fun onPostExecute(result: WritableMap?) {
-    if (error != null) {
-      Log.d("TorBridge", "error onPostExecute" + error.toString())
-      mPromise!!.reject(error)
-    } else {
-      mPromise!!.resolve(result)
+
+sealed class RequestResult {
+  data class Success(val result: WritableMap) : RequestResult()
+  data class Error(val message: String, val result: String?, val error: Throwable?) :
+    RequestResult()
+}
+
+class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client: OkHttpClient) :
+  AsyncTask<TaskParam, String?, RequestResult?>() {
+  override fun onPostExecute(result: RequestResult?) {
+    when (result) {
+      is RequestResult.Error -> {
+        if (result.error !== null) {
+          mPromise!!.reject(result.message, result.error);
+        } else if (result.result != null) {
+          mPromise!!.reject(result.message, Throwable(result.message + ": " + result.result));
+        }
+      }
+      is RequestResult.Success -> mPromise!!.resolve(result.result)
+      else -> mPromise!!.reject("Unable to processing Request result")
     }
     mPromise = null
-    error = null
   }
 
-  @Throws(IOException::class)
-  fun run(param: TaskParam): WritableMap {
-    // Create a trust manager that does not validate certificate chains
-    val trustAllCerts: Array<TrustManager> = arrayOf<TrustManager>(
-      object : X509TrustManager() {
-        @Override
-        @kotlin.jvm.Throws(CertificateException::class)
-        fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate?>?, authType: String?) {
-        }
 
-        @Override
-        @kotlin.jvm.Throws(CertificateException::class)
-        fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate?>?, authType: String?) {
-        }
+  fun run(param: TaskParam): RequestResult {
 
-        @get:Override
-        val acceptedIssuers: Array<Any?>?
-          get() = arrayOf<java.security.cert.X509Certificate?>()
-      }
-    )
-
-    // Install the all-trusting trust manager
-    val sslContext: SSLContext = SSLContext.getInstance("SSL")
-    sslContext.init(null, trustAllCerts, SecureRandom())
-    // Create an ssl socket factory with our all-trusting manager
-    val sslSocketFactory: SSLSocketFactory = sslContext.getSocketFactory()
-    val request: OkHttpClient.Builder = Builder()
-    request.sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-    request.hostnameVerifier(object : HostnameVerifier() {
-      @Override
-      fun verify(hostname: String?, session: SSLSession?): Boolean {
-        return true
-      }
-    })
-    request = when (param.method.toUpperCase()) {
+    val request = when (param.method.toUpperCase()) {
       "POST" -> {
-        // FIXME body should not be empty for post ??
+        // FIXME body with empty string
+        // and multiform
         val body = RequestBody.create(JSON, param.json!!)
-        Request.url(param.url)
+        Request.Builder().url(param.url)
           .post(body)
       }
-      "GET" -> Request.url(param.url)
-      "DELETE" -> Request.url(param.url).delete()
+      "GET" -> Request.Builder().url(param.url)
+      "DELETE" -> Request.Builder().url(param.url).delete()
       else -> throw IOException("Invalid method $param.method")
     }
+
     if (!param.headers.isNullOrEmpty()) {
       param.headers.forEach { (key, value) -> request.addHeader(key, value.toString()); }
     }
 
+
     client.newCall(request.build()).execute().use { response ->
       val resp = Arguments.createMap()
-      val headers = response.headers().toMultimap()
       val headersMap = Arguments.createMap()
-      for ((key, value) in headers.entries) {
-        try {
-          if (value is List<*>) {
-            headersMap.putArray(key.toString(), Arguments.fromList(headers[key]))
-          } else {
-            Log.d("TOR","Header value is not list");
-          }
-        } catch (e: Throwable) {
-        }
+
+      response.headers().toMultimap().map {
+        headersMap.putArray(it.key.toString(), Arguments.fromList(it.value))
       }
       resp.putMap("headers", headersMap)
+
+      val respCode = response.code()
+      resp.putInt("respCode", respCode)
+
       val contentType = response.header("content-type").toString();
       val body = response.body()?.bytes()
       if (contentType is String) {
@@ -104,7 +81,16 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
         }
       }
       resp.putString("b64Data", Base64.encodeToString(body, Base64.DEFAULT))
-      return resp
+
+      return if (response.code() > 299) {
+        RequestResult.Error(
+          "Request Response Code ($respCode) : $resp.j",
+          body?.toString(Charsets.UTF_8),
+          null
+        );
+      } else {
+        RequestResult.Success(resp);
+      }
     }
   }
 
@@ -112,15 +98,12 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
     protected val JSON = MediaType.get("application/json; charset=utf-8")
   }
 
-  override fun doInBackground(vararg params: TaskParam?): WritableMap? {
+  override fun doInBackground(vararg params: TaskParam?): RequestResult? {
     return try {
       run(params[0]!!)
     } catch (e: Exception) {
       Log.d("TorBridge", "error doInBackground$e")
-      error = e
-      val resp = Arguments.createMap()
-      resp.putString("error", e.toString())
-      resp
+      RequestResult.Error("Error processing Reequest", null, e)
     }
   }
 

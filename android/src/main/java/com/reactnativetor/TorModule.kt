@@ -4,20 +4,51 @@ import android.os.AsyncTask
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.sifir.tor.OwnedTorService
-import com.sifir.tor.TorServiceParam
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.util.concurrent.TimeUnit
 import java.net.Proxy;
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
-  private var client: OkHttpClient? = null;
   private var _starting: Boolean = false;
+
+  /**
+   * Gets a client that accepts all SSL certs
+   * TODO Not sure how i feel about this but seems to be the only way
+   * to accept self signed certs for onion urls
+   * if anyone knows of a better way please PR this.
+   */
+  private fun getUnsafeOkHttpClient(): OkHttpClient.Builder {
+    // Create a trust manager that does not validate certificate chains
+    val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+      }
+
+      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+      }
+
+      override fun getAcceptedIssuers() = arrayOf<X509Certificate>()
+    })
+
+    // Install the all-trusting trust manager
+    val sslContext = SSLContext.getInstance("SSL")
+    sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+    // Create an ssl socket factory with our all-trusting manager
+    val sslSocketFactory = sslContext.socketFactory
+
+    return OkHttpClient.Builder()
+      .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+      .hostnameVerifier { _, _ -> true }
+  }
 
   override fun getName(): String {
     return "TorBridge"
@@ -48,13 +79,28 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   }
 
   @ReactMethod
-  fun request(url: String, method: String, jsonBody: String, headers: ReadableMap, promise: Promise) {
+  fun request(
+    url: String,
+    method: String,
+    jsonBody: String,
+    headers: ReadableMap,
+    trustAllSSl: Boolean,
+    promise: Promise
+  ) {
     if (service == null) {
       promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
     }
+
+    var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
+      .proxy(proxy)
+      .connectTimeout(7, TimeUnit.SECONDS)
+      .writeTimeout(7, TimeUnit.SECONDS)
+      .readTimeout(7, TimeUnit.SECONDS)
+      .build()
+
     try {
       val param = TaskParam(method, url, jsonBody, headers.toHashMap())
-      TorBridgeAsyncTask(promise, client!!).executeOnExecutor(
+      TorBridgeAsyncTask(promise, client).executeOnExecutor(
         AsyncTask.THREAD_POOL_EXECUTOR, param
       )
     } catch (e: Exception) {
@@ -80,13 +126,6 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       TorBridgeStartAsync({
         service = it
         proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
-        client = OkHttpClient()
-          .newBuilder()
-          .proxy(proxy)
-          .connectTimeout(7, TimeUnit.SECONDS)
-          .writeTimeout(7, TimeUnit.SECONDS)
-          .readTimeout(7, TimeUnit.SECONDS)
-          .build()
         _starting = false;
         promise.resolve(socksPort);
       }, {
@@ -96,7 +135,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         AsyncTask.THREAD_POOL_EXECUTOR, param
       )
     } catch (e: Exception) {
-      Log.d("TorBridge", "error on sendRequest$e")
+      Log.d("TorBridge", "error on sendRequest $e")
       promise.reject(e)
     }
   }
@@ -122,7 +161,6 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       service?.shutdown();
       service = null
       proxy = null;
-      client = null;
       promise.resolve(true);
     } catch (e: Exception) {
       Log.d("TorBridge", "error on stopDaemon$e")
