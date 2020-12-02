@@ -85,7 +85,6 @@ export default ({
     console.log('Got app state', nextAppState, lastAppState);
     if (
       startDaemonOnActive &&
-      // lastAppState.match(/inactive|background/) &&
       lastAppState.match(/background/) &&
       nextAppState === 'active'
     ) {
@@ -100,7 +99,6 @@ export default ({
       stopDaemonOnBackground &&
       lastAppState.match(/active/) &&
       nextAppState === 'background'
-      // nextAppState === 'inactive'
     ) {
       const status = NativeModules.TorBridge.getDaemonStatus();
       if (status !== 'NOTINIT') {
@@ -131,7 +129,7 @@ export default ({
   ): Promise<RequestResponse> => {
     if (os === 'android') {
       // Mapping JSONObject to ReadableMap for the bridge is a bit of a manual shitshow
-      // so anroid JSON will be returned as string from the other side and we parse it here
+      // so android JSON will be returned as string from the other side and we parse it here
       //
       if (res?.json) {
         const json = JSON.parse(res.json);

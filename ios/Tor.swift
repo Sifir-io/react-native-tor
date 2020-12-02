@@ -3,9 +3,9 @@ import Foundation;
 // Trust SSLs even if invalid
 extension Tor:URLSessionDelegate {
     public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-       //Trust the certificate even if not valid
-       let urlCredential = URLCredential(trust: challenge.protectionSpace.serverTrust!)
-       completionHandler(.useCredential, urlCredential)
+        //Trust the certificate even if not valid
+        let urlCredential = URLCredential(trust: challenge.protectionSpace.serverTrust!)
+        completionHandler(.useCredential, urlCredential)
     }
 }
 
@@ -28,7 +28,7 @@ class Tor: NSObject {
     var service:Optional<OpaquePointer> = nil;
     var proxySocksPort:Optional<UInt16> = nil;
     var starting:Bool = false;
-
+    
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
         config.requestCachePolicy = URLRequest.CachePolicy.reloadIgnoringLocalCacheData;
@@ -48,11 +48,12 @@ class Tor: NSObject {
         }
     }
     
-    func prepareObjResp (data:Data,resp:HTTPURLResponse,resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
+    func resolveObjResp (data:Data,resp:HTTPURLResponse,resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
         let jsonObject: NSMutableDictionary = NSMutableDictionary()
         jsonObject.setValue(data.base64EncodedString(), forKey: "b64Data")
         jsonObject.setValue(resp.mimeType, forKey: "mimeType")
         jsonObject.setValue(resp.allHeaderFields, forKey: "headers")
+        jsonObject.setValue(resp.statusCode, forKey: "respCode")
         // parse json if that's what we have
         if let mimeType = resp.mimeType {
             if mimeType == "application/json" || mimeType == "application/javascript" {
@@ -69,8 +70,12 @@ class Tor: NSObject {
         if 200...299 ~= resp.statusCode {
             resolve(jsonObject as NSObject )
         }else{
+            var msg:Optional<String> = nil;
+            if let errorMessage = String(data:data,encoding: .utf8) {
+                msg = errorMessage
+            }
             reject(
-                "TOR.REQUEST","Resp Code: \(resp.statusCode)",NSError.init(domain: "TOR.REQUEST", code: resp.statusCode,userInfo: jsonObject as? [String : Any]));
+                "TOR.REQUEST","Resp Code: \(resp.statusCode) : \(msg)",NSError.init(domain: "TOR.REQUEST", code: resp.statusCode,userInfo:["data" : msg]));
         }
     }
     
@@ -93,20 +98,20 @@ class Tor: NSObject {
             case "get":
                 session.dataTask(with: _url) {  data, resp, error in
                     guard let dataResp = data , error == nil, let respData = resp else {
-                        reject("TOR.GET",error?.localizedDescription,error);
+                        reject("TOR.NETWORK.GET",error?.localizedDescription,error);
                         return;
                     }
-                    self.prepareObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
+                    self.resolveObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
                 }.resume();
             case "delete":
                 var request = URLRequest(url:_url);
                 request.httpMethod = "DELETE";
                 session.dataTask(with: request) {  data, resp, error in
                     guard let dataResp = data , error == nil, let respData = resp else {
-                        reject("TOR.DELETE",error?.localizedDescription,error);
+                        reject("TOR.NETWORK.DELETE",error?.localizedDescription,error);
                         return;
                     }
-                    self.prepareObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
+                    self.resolveObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
                     
                 }.resume();
             case "post":
@@ -114,10 +119,10 @@ class Tor: NSObject {
                 request.httpMethod = "POST";
                 session.uploadTask(with: request, from: jsonBody.data(using: .utf8)) {  data, resp, error in
                     guard let dataResp = data , let respData = resp , error == nil  else {
-                        reject("TOR.POST",error?.localizedDescription,error);
+                        reject("TOR.NETWORK.POST",error?.localizedDescription,error);
                         return;
                     }
-                    self.prepareObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
+                    self.resolveObjResp(data:dataResp,resp:respData as! HTTPURLResponse,resolve:resolve,reject:reject);
                 }.resume();
                 
             default:
