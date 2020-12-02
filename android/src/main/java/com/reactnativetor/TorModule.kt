@@ -93,9 +93,9 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
       .proxy(proxy)
-      .connectTimeout(7, TimeUnit.SECONDS)
-      .writeTimeout(7, TimeUnit.SECONDS)
-      .readTimeout(7, TimeUnit.SECONDS)
+      .connectTimeout(10, TimeUnit.SECONDS)
+      .writeTimeout(10, TimeUnit.SECONDS)
+      .readTimeout(10, TimeUnit.SECONDS)
       .build()
 
     try {

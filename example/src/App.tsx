@@ -54,7 +54,11 @@ export default function App() {
       let resp = await client.post(
         onion,
         JSON.stringify({ q: 'hello' }),
-        undefined,
+        {
+          'Content-Type': 'application/json',
+          // also supports
+          // 'Content-Type': 'application/x-www-form-urlencoded',
+        },
         trustSSL
       );
       console.log('got resp', resp);
@@ -91,13 +95,10 @@ export default function App() {
               onChangeText={setOnion}
               value={onion}
             />
-            <Button onPress={getOnion} title="Get onion">
-              <Text>Get Onion</Text>
-            </Button>
-            <Button onPress={postOnion} title="POST onion">
-              <Text>Post To Onion</Text>
-            </Button>
+            <Button onPress={getOnion} title="Get onion" />
+            <Button onPress={postOnion} title="POST onion" />
             <View>
+              <Text> Trust Self Signed SSL Toggle</Text>
               <Button
                 onPress={() => setTrustSSL(!trustSSL)}
                 title={

@@ -44,14 +44,21 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
 
     val request = when (param.method.toUpperCase()) {
       "POST" -> {
-        // FIXME body with empty string
-        // and multiform
-        val body = RequestBody.create(JSON, param.json!!)
+        // Check Content-Type headers provided
+        // Currently only support application/x-www-form-urlencoded
+        // If not provided defaults to application/json
+        // TODO Expand supported content formats ?
+        val body = when(param.headers?.get("Content-Type") ?: "application/json"){
+          "application/x-www-form-urlencoded"-> FormBody.create(MediaType.get("application/x-www-form-urlencoded; charset=utf-8"),param.json!!)
+          else -> RequestBody.create(MediaType.get("application/json; charset=utf-8"), param.json!!)
+        }
         Request.Builder().url(param.url)
           .post(body)
       }
       "GET" -> Request.Builder().url(param.url)
+      // TODO add body support for delete
       "DELETE" -> Request.Builder().url(param.url).delete()
+      // TODO PUT
       else -> throw IOException("Invalid method $param.method")
     }
 
@@ -84,7 +91,7 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
 
       return if (response.code() > 299) {
         RequestResult.Error(
-          "Request Response Code ($respCode) : $resp.j",
+          "Request Response Code ($respCode)",
           body?.toString(Charsets.UTF_8),
           null
         );
@@ -93,17 +100,12 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
       }
     }
   }
-
-  companion object {
-    protected val JSON = MediaType.get("application/json; charset=utf-8")
-  }
-
   override fun doInBackground(vararg params: TaskParam?): RequestResult? {
     return try {
       run(params[0]!!)
     } catch (e: Exception) {
       Log.d("TorBridge", "error doInBackground$e")
-      RequestResult.Error("Error processing Reequest", null, e)
+      RequestResult.Error("Error processing Request", null, e)
     }
   }
 
