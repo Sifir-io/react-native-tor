@@ -106,12 +106,12 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
     }
   }
 
-  override fun doInBackground(vararg params: TaskParam?): RequestResult? {
+  override fun doInBackground(vararg params: TaskParam?): RequestResult {
     return try {
       run(params[0]!!)
     } catch (e: Exception) {
       Log.d("TorBridge", "error doInBackground$e")
-      RequestResult.Error("Error processing Request", null, e)
+      return RequestResult.Error("Error processing Request", null, e)
     }
   }
 
