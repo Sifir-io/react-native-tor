@@ -8,21 +8,22 @@ import {
 type SocksPortNumber = number;
 type RequestHeaders = { [header: string]: string } | {};
 type ResponseHeaders = { [header: string]: string | string[] };
-enum RequestMethod {
+export enum RequestMethod {
   'GET' = 'get',
   'POST' = 'post',
   'DELETE' = 'delete',
 }
 
-interface RequestBody {
+export interface RequestBody {
   [RequestMethod.GET]: undefined;
   [RequestMethod.POST]: string;
   [RequestMethod.DELETE]: string | undefined;
 }
-interface RequestResponse<T = any> {
+export interface RequestResponse<T = any> {
   mimeType: string;
   b64Data: string;
   headers: ResponseHeaders;
+  respCode: number;
   json?: T;
 }
 interface ProcessedRequestResponse extends RequestResponse {}
@@ -65,7 +66,7 @@ type TorType = {
    */
   startIfNotStarted(): Promise<SocksPortNumber>;
   stopIfRunning(): Promise<void>;
-  // FIXME to enum
+  // TODO to enum
   getDaemonStatus(): Promise<string>;
   request: NativeTor['request'];
 };

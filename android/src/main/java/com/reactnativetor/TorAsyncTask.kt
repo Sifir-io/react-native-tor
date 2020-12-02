@@ -34,7 +34,7 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
         }
       }
       is RequestResult.Success -> mPromise!!.resolve(result.result)
-      else -> mPromise!!.reject("Unable to processing Request result")
+      else -> mPromise!!.reject("Unable to process RequestResult: Exhaustive Clause")
     }
     mPromise = null
   }
