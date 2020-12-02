@@ -57,7 +57,7 @@ class Tor: NSObject {
         if let mimeType = resp.mimeType {
             if mimeType == "application/json" || mimeType == "application/javascript" {
                 do{
-                    let json = try JSONSerialization.jsonObject(with: data, options: [])
+                    let json = try JSONSerialization.jsonObject(with: data, options: .allowFragments)
                     jsonObject.setValue(json, forKey: "json")
                 } catch {
                     print("prepareObjResp errorParsingJson!",error);
@@ -112,19 +112,6 @@ class Tor: NSObject {
             case "post":
                 var request = URLRequest(url:_url);
                 request.httpMethod = "POST";
-                // If content type header is set for POST check it
-//                // We just look for form url encoded
-//                if let contentType = headers["Content-Type"]{
-//                    switch(contentType as! String){
-//                    case "application/x-www-form-urlencoded":
-//                        request.httpBody = jsonBody.data(using: .utf8);
-//                        break;
-//                    default:
-//                        request.httpBody = jsonBody.data(using: .utf8)
-//                    }
-//                } else {
-//                    request.httpBody = jsonBody.data(using: .utf8)
-//                }
                 session.uploadTask(with: request, from: jsonBody.data(using: .utf8)) {  data, resp, error in
                     guard let dataResp = data , let respData = resp , error == nil  else {
                         reject("TOR.POST",error?.localizedDescription,error);
