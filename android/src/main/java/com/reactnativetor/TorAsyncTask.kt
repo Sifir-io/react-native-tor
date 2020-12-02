@@ -48,8 +48,11 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
         // Currently only support application/x-www-form-urlencoded
         // If not provided defaults to application/json
         // TODO Expand supported content formats ?
-        val body = when(param.headers?.get("Content-Type") ?: "application/json"){
-          "application/x-www-form-urlencoded"-> FormBody.create(MediaType.get("application/x-www-form-urlencoded; charset=utf-8"),param.json!!)
+        val body = when (param.headers?.get("Content-Type") ?: "application/json") {
+          "application/x-www-form-urlencoded" -> FormBody.create(
+            MediaType.get("application/x-www-form-urlencoded; charset=utf-8"),
+            param.json!!
+          )
           else -> RequestBody.create(MediaType.get("application/json; charset=utf-8"), param.json!!)
         }
         Request.Builder().url(param.url)
@@ -84,7 +87,9 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
       if (contentType is String) {
         resp.putString("mimeType", contentType)
         if (contentType.startsWith("application/json") || contentType.startsWith("application/javascript")) {
-          resp.putString("json", JSONObject(body?.toString(Charsets.UTF_8)).toString())
+          // Android JSONObjects -> WritableMaps are a mess
+          // So just send the string back to JS to parse
+          resp.putString("json", body?.toString(Charsets.UTF_8))
         }
       }
       resp.putString("b64Data", Base64.encodeToString(body, Base64.DEFAULT))
@@ -100,6 +105,7 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
       }
     }
   }
+
   override fun doInBackground(vararg params: TaskParam?): RequestResult? {
     return try {
       run(params[0]!!)
