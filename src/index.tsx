@@ -6,8 +6,8 @@ import {
 } from 'react-native';
 
 type SocksPortNumber = number;
-type RequestHeaders = { [header: string]: string } | {};
-type ResponseHeaders = { [header: string]: string | string[] };
+export type RequestHeaders = { [header: string]: string } | {};
+export type ResponseHeaders = { [header: string]: string | string[] };
 export enum RequestMethod {
   'GET' = 'get',
   'POST' = 'post',
@@ -92,7 +92,7 @@ export default ({
       const status = NativeModules.TorBridge.getDaemonStatus();
       // Daemon should be in NOTINIT status if coming from background and this is enabled, so if not shutodwn and start again
       if (status !== 'NOTINIT') {
-        stopIfRunning();
+        await stopIfRunning();
       }
       startIfNotStarted();
     }
@@ -163,7 +163,7 @@ export default ({
     },
     async post(
       url: string,
-      body: string,
+      body: RequestBody[RequestMethod.POST],
       headers?: RequestHeaders,
       trustSSL: boolean = true
     ) {
@@ -180,7 +180,7 @@ export default ({
     },
     async delete(
       url: string,
-      body?: string,
+      body: RequestBody[RequestMethod.DELETE],
       headers?: RequestHeaders,
       trustSSL: boolean = true
     ) {
