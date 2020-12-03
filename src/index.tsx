@@ -28,6 +28,10 @@ export interface RequestResponse<T = any> {
 }
 interface ProcessedRequestResponse extends RequestResponse {}
 
+/**
+ * Native module interface
+ * Used internally, public calls should be made on the returned TorType
+ */
 interface NativeTor {
   startDaemon(): Promise<SocksPortNumber>;
   stopDaemon(): Promise<void>;
@@ -41,38 +45,84 @@ interface NativeTor {
   ): Promise<RequestResponse>;
 }
 type TorType = {
-  /** Shorthand for request for type GET **/
+  /**
+   * Sen d a GET request routed through the SOCKS proxy on the native side
+   * Starts the Tor Daemon automatically if not already started
+   * @param url
+   * @param headers
+   * @param trustSSL
+   */
   get(
     url: string,
     headers?: RequestHeaders,
     trustSSL?: boolean
   ): Promise<ProcessedRequestResponse>;
-  /** Shorthand for request for type POST **/
+  /**
+   * Send a POST request routed through the SOCKS proxy on the native side
+   * Starts the Tor Daemon automatically if not already started
+   * @param url
+   * @param body
+   * @param headers
+   * @param trustSSL
+   */
   post(
     url: string,
     body: RequestBody[RequestMethod.POST],
     headers?: RequestHeaders,
     trustSSL?: boolean
   ): Promise<ProcessedRequestResponse>;
+
+  /**
+   * Send a DELETE request routed through the SOCKS proxy on the native side
+   * Starts the Tor Daemon automatically if not already started
+   * @param url
+   * @param headers
+   * @param trustSSL
+   */
   delete(
     url: string,
     body?: RequestBody[RequestMethod.DELETE],
     headers?: RequestHeaders,
     trustSSL?: boolean
   ): Promise<ProcessedRequestResponse>;
-  /** Starts the TorDaemon if not started and returns a promise that fullfills with the socks port number when boostraping is compplete.
+  /** Starts the Tor Daemon if not started and returns a promise that fullfills with the socks port number when boostraping is complete.
    * If the function was previously called it will return the promise without attempting to start the daemon again.
    * Useful when used as a guard in your transport or action layer
    */
   startIfNotStarted(): Promise<SocksPortNumber>;
+  /**
+   * Stops a running Tor Daemon
+   */
   stopIfRunning(): Promise<void>;
-  // TODO to enum
+  /**
+   * Returns the current status of the Daemon
+   * Some :
+   * NOTINIT - Not initialized or run (call startIfNotStarted to the startDaemon)
+   * STARTING - Daemon is starting and bootsraping
+   * DONE - Daemon has completed boostraing and socks proxy is ready to be used to route traffic.
+   * <other> - A status returned directly by the Daemon that can indicate a transient state or error.
+   */
   getDaemonStatus(): Promise<string>;
+  /**
+   * Accessor the Native request function
+   * Should not be used unless you know what you are doing.
+   */
   request: NativeTor['request'];
 };
 
 const TorBridge: NativeTor = NativeModules.TorBridge;
 
+/**
+ * Tor module factory function
+ * @param stopDaemonOnBackground
+ * @default true
+ * When set to true will shutdown the Tor daemon when the application is backgrounded preventing pre-emitive shutdowns by the OS
+ * @param startDaemonOnActive
+ * @default false
+ * When set to true will automatically start/restart the Tor daemon when the application is bought back to the foreground (from the background)
+ * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
+ * @default The os the module is running on.
+ */
 export default ({
   stopDaemonOnBackground = true,
   startDaemonOnActive = false,
@@ -82,7 +132,6 @@ export default ({
   let lastAppState: AppStateStatus = 'active';
   let _appStateLsnerSet: boolean = false;
   const _handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    console.log('Got app state', nextAppState, lastAppState);
     if (
       startDaemonOnActive &&
       lastAppState.match(/background/) &&
@@ -122,7 +171,6 @@ export default ({
 
   /**
    * Post process request result
-   * TODO make this injectable
    */
   const onAfterRequest = async (
     res: RequestResponse
