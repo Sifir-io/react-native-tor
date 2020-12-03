@@ -35,12 +35,14 @@ Early Beta software provided as is and accepts no responsibility for use.
 
 ## Why This ?
 Privacy is important and should not be hard.
+- Users shouldn't be expected to install 3rd party apps and setup custom VPNS to get more privacy.
+- Devs shouldn't have to jump through hoops to get Onion urls routing correctly
+- React native is an awesome tool and this brings awesome privacy to it.
 
-We provided a Daemon + A proxified native side client to make it all easy for devs.
 
 ## What This Does ?
-Embeds Tor Daemon + Onion Routing into Zeus, removing the dependency on Orbot and allowing Tor usage on IOS
-Updates backend APIs to use Tor when enabled
+We provided a Daemon + A SOCKS5 enabled REST client to make it all easy for devs.
+Embeds Tor Daemon + Onion Routing into your App, removing the dependency on Orbot and allowing Tor usage on IOS
 
 ## How it Does it ?
 
@@ -127,7 +129,7 @@ https://liberapay.com/gabidi/
 -
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
 
-## Developement and Building from Scratch
+## Development and Building from Scratch
 
 ### Building for Native projects
 
