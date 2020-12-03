@@ -1,23 +1,34 @@
 # React Native Tor
 A fully featured Tor Daemon and Onion Routing Client for your React Native iOS and Android Project!
-:calling: :closed_lock_with_key: :globe_with_meridians: :boom:
+:calling: :closed_lock_with_key: :globe_with_meridians:
 ## TL;DR
+In your project:
+
+```shell script
+npm i react-native-tor
+```
+then
 ```js
 import Tor from "react-native-tor";
-// init client with default options
+
+// Initalize the module
 const tor = Tor();
-// start the daemon and socks port (no need for Orbot and yes iOS supported!)
+
+// Start the daemon and socks port (no need for Orbot and yes iOS supported!)
 await tor.startIfNotStarted();
+
 try{
-   // use proxified built in client to make REST calls
+   // Use proxified built in client to make REST calls
    // routed through the sock5 proxy !
-   // note: self signed https endpoints and custom headers supported!
-   const resp = tor.get('https://some.onion',{'Authoriztion': 'sometoken'},true);
-   tor.post('https://someother.onion',JSON.stringify(body),{'Authoriztion': 'sometoken'},true);
+   const resp = await tor.get('http://some.onion',{'Authoriztion': 'sometoken'});
+   // Note: self signed https endpoints and custom headers supported!
+   await tor.post('https://someother.onion',JSON.stringify(body),{'Authoriztion': 'sometoken'},true);
+
 } catch(error){
-  //...
+  // Catch a network or server error like you normally with any other fetch library
 }
 ```
+:boom:
 
 If you think this is awesome, please consider [contributing to Privacy and Opensource](#Contributing-to-Privacy-and-Opensource) !
 
