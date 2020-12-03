@@ -113,7 +113,7 @@ try{
 }
 ```
 ## API reference
-Please reference [Typescript defs and JSDoc](./lib/typescript/src/index.d.ts) for details.
+Please reference [Typescript defs and JSDoc](./src/index.tsx) for details.
 
 Documentation is a WIP, Contribute!
 
