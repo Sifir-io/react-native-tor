@@ -6,25 +6,27 @@ In your project:
 
 ```shell script
 npm i react-native-tor
+// for ios builds
+// cd ios && pod install
 ```
+
 then
 ```js
 import Tor from "react-native-tor";
 
-// Initalize the module
+// Initialize the module
 const tor = Tor();
 
 //...
 
 const makeTorRequest = async()=>{
-    // Start the daemon and socks port (no need for Orbot and yes iOS supported!)
+    // Start the daemon and socks proxy (no need for Orbot and yes iOS supported!)
     await tor.startIfNotStarted();
 
     try{
-       // Use proxified built in client to make REST calls
-       // routed through the sock5 proxy !
+       // Use built in client to make REST calls to .onion urls routed through the Sock5 proxy !
        const resp = await tor.get('http://some.onion',{'Authoriztion': 'sometoken'});
-       // Note: self signed https endpoints and custom headers supported!
+       // Note: self signed https endpoints, custom headers and multiform/json payloads supported!
        await tor.post('https://someother.onion',JSON.stringify(resp.json),{'Authoriztion': 'sometoken'},true);
 
     } catch(error){
@@ -39,10 +41,10 @@ makeTorRequest();
 If you think this is awesome, please consider [contributing to Privacy and Opensource](#Contributing-to-Privacy-and-Opensource) !
 
 ## Highlights
-- Embeds Tor Daemon + Onion Routing removing the dependency on Orbot and allowing Tor usage on IOS.
-- Provides a Socks5 proxy enabled native client to allow you to make Rest calls on Onion URLs directly from JS!
-- Start a hidden service accessible via an Onion URL directly on your phone (in final test for upcoming 0.0.2 release)
-- Provides guard functions and state management options to auto start/stop the daemon when calls are made the application is backgrounded/foregrounded
+- Embeds a fully functional Tor Daemon, with its own circuit (non exit) removing the dependency on Orbot and allowing Tor usage on IOS.
+- Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..!
+- [WIP] Start a hidden service accessible via an Onion URL directly on your phone (in final test for upcoming 0.0.2 release)
+- Provides guard functions and state management options to autostart/stop the daemon when REST calls are initiated and/or the application is backgrounded/foregrounded
 - TS Typed API for sanity.
 
 ## Disclaimer
@@ -58,13 +60,12 @@ Privacy is important and should not be hard.
 
 
 ## What This Does ?
-We provided a Daemon + A SOCKS5 enabled REST client to make it all easy for devs.
 Embeds Tor Daemon + Onion Routing into your App, removing the dependency on Orbot and allowing Tor usage on IOS
 
 ## How it Does it ?
 
 This module uses multiple layers:
-1. Pre-compiled rust sdk for the Tor daemon (Check CODE section for details)
+1. Pre-compiled rust sdk (sifir-rs-sdk) for the Tor daemon and Control code (Check CODE section for details)
 2. Swift/Kotlin wrappers to access and control the daemon and provide native proxified clients.
 3. TS/JS Native bridges to allow access from your components.
 
@@ -197,10 +198,11 @@ declare type TorType = {
 
 You can also check the provided [Example Application](example/src/App.tsx) for a quick reference.
 
-## Sample Applications
-- [Sifir Wallet](https://github.com/Sifir-io/sifir-mobile-wallet) Privacy and UX focused Bitcoin based Super App.
-
 ---
+## Acknowledgments
+
+- [Torproject](https://www.torproject.org) For everything they do.
+- [@afilini](https://github.com/afilini) for his amazing work on libtor and constant support!
 
 ## Contributing to Privacy and Opensource
 
@@ -267,12 +269,16 @@ Know someone who want to add a bit more privacy to their Application / Product ?
 ## TODOs
 
 ### WIP
+
+- Better API Docs
+- Event emitter from Rust to Native on Boostrap status
 - Enable secret service API
     - Start new secret service on phone.
     - Restore secret service from key.
 
 ### Backlog
-- Search for available for socks proxy for iOS
+
+- Search for available ports for socks proxy for iOS
 - Return a Context API for each component building.
 - Build on Request capability
   - PUT calls
@@ -281,6 +287,7 @@ Know someone who want to add a bit more privacy to their Application / Product ?
   - Websockets
   - Streaming ?
   - Maybe make it as a NetworkExtension and create VPN for app so we can use started REST Libraries ?
+
 
 ## License
 
