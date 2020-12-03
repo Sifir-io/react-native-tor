@@ -14,19 +14,25 @@ import Tor from "react-native-tor";
 // Initalize the module
 const tor = Tor();
 
-// Start the daemon and socks port (no need for Orbot and yes iOS supported!)
-await tor.startIfNotStarted();
+//...
 
-try{
-   // Use proxified built in client to make REST calls
-   // routed through the sock5 proxy !
-   const resp = await tor.get('http://some.onion',{'Authoriztion': 'sometoken'});
-   // Note: self signed https endpoints and custom headers supported!
-   await tor.post('https://someother.onion',JSON.stringify(body),{'Authoriztion': 'sometoken'},true);
+const makeTorRequest = async()=>{
+    // Start the daemon and socks port (no need for Orbot and yes iOS supported!)
+    await tor.startIfNotStarted();
 
-} catch(error){
-  // Catch a network or server error like you normally with any other fetch library
+    try{
+       // Use proxified built in client to make REST calls
+       // routed through the sock5 proxy !
+       const resp = await tor.get('http://some.onion',{'Authoriztion': 'sometoken'});
+       // Note: self signed https endpoints and custom headers supported!
+       await tor.post('https://someother.onion',JSON.stringify(resp.json),{'Authoriztion': 'sometoken'},true);
+
+    } catch(error){
+      // Catch a network or server error like you normally with any other fetch library
+    }
 }
+
+makeTorRequest();
 ```
 :boom:
 
@@ -105,6 +111,88 @@ try{
 } catch(error){
     // Client throws on Network errors and Response codes > 299
 }
+```
+## API reference
+Please reference [Typescript defs and JSDoc](./lib/typescript/src/index.d.ts) for details.
+
+Documentation is a WIP, Contribute!
+
+
+```ts
+const tor = Tor({ ...params });
+```
+defined as :
+```ts
+/**
+ * Tor module factory function
+ * @param stopDaemonOnBackground
+ * @default true
+ * When set to true will shutdown the Tor daemon when the application is backgrounded preventing pre-emitive shutdowns by the OS
+ * @param startDaemonOnActive
+ * @default false
+ * When set to true will automatically start/restart the Tor daemon when the application is bought back to the foreground (from the background)
+ * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
+ * @default The os the module is running on.
+ */
+declare const _default: ({ stopDaemonOnBackground, startDaemonOnActive, os, }?: {
+    stopDaemonOnBackground?: boolean | undefined;
+    startDaemonOnActive?: boolean | undefined;
+    os?: "ios" | "android" | "windows" | "macos" | "web" | undefined;
+}) => TorType;
+```
+This returns an instance of TorType module which gives control over the Tor daemon and access to the Socks5 enabled client:
+```ts
+declare type TorType = {
+    /**
+     * Send a GET request routed through the SOCKS proxy on the native side
+     * Starts the Tor Daemon automatically if not already started
+     * @param url
+     * @param headers
+     * @param trustSSL @default true When true accepts *any* SSL cert for the onion URL
+     */
+    get(url: string, headers?: RequestHeaders, trustSSL?: boolean): Promise<ProcessedRequestResponse>;
+    /**
+     * Send a POST request routed through the SOCKS proxy on the native side
+     * Starts the Tor Daemon automatically if not already started
+     * @param url
+     * @param body JSON encoded (JSON.stringify) string of the payload to send * *Note*: Client will treat the body as a JSON string and set request header accordingly
+     * The client also supports sending the payload as `application/x-www-form-urlencoded` by setting the `Content-Type` header to `application/x-www-form-urlencoded` in the header param
+     * @param headers
+     * @param trustSSL @default true When true accepts *any* SSL cert for the onion URL
+     */
+    post(url: string, body: RequestBody[RequestMethod.POST], headers?: RequestHeaders, trustSSL?: boolean): Promise<ProcessedRequestResponse>;
+    /**
+     * Send a DELETE request routed through the SOCKS proxy on the native side
+     * Starts the Tor Daemon automatically if not already started
+     * @param url
+     * @param headers
+     * @param trustSSL @default true When true accepts *any* SSL cert for the onion URL
+     */
+    delete(url: string, body?: RequestBody[RequestMethod.DELETE], headers?: RequestHeaders, trustSSL?: boolean): Promise<ProcessedRequestResponse>;
+    /** Starts the Tor Daemon if not started and returns a promise that fullfills with the socks port number when boostraping is complete.
+     * If the function was previously called it will return the promise without attempting to start the daemon again.
+     * Useful when used as a guard in your transport or action layer
+     */
+    startIfNotStarted(): Promise<SocksPortNumber>;
+    /**
+     * Stops a running Tor Daemon
+     */
+    stopIfRunning(): Promise<void>;
+    /**
+     * Returns the current status of the Daemon
+     * Some :
+     * NOTINIT - Not initialized or run (call startIfNotStarted to the startDaemon)
+     * STARTING - Daemon is starting and bootsraping
+     * DONE - Daemon has completed boostraing and socks proxy is ready to be used to route traffic.
+     * <other> - A status returned directly by the Daemon that can indicate a transient state or error.
+     */
+    getDaemonStatus(): Promise<string>;
+    /**
+     * Accessor the Native request function
+     * Should not be used unless you know what you are doing.
+     */
+    request: NativeTor['request'];
+};
 ```
 
 You can also check the provided [Example Application](example/src/App.tsx) for a quick reference.

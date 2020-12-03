@@ -8,22 +8,51 @@ import {
 type SocksPortNumber = number;
 export type RequestHeaders = { [header: string]: string } | {};
 export type ResponseHeaders = { [header: string]: string | string[] };
+
+/**
+ * Supported Request types
+ * @todo PUT
+ */
 export enum RequestMethod {
   'GET' = 'get',
   'POST' = 'post',
   'DELETE' = 'delete',
 }
 
+/**
+ * Supported Body Payloads for the respective RequestMethod
+ */
 export interface RequestBody {
   [RequestMethod.GET]: undefined;
   [RequestMethod.POST]: string;
   [RequestMethod.DELETE]: string | undefined;
 }
+
+/**
+ * Response returned from a successfully executed request
+ */
 export interface RequestResponse<T = any> {
+  /**
+   * Content mimeType returned by server
+   */
   mimeType: string;
+  /**
+   * Base64 encoded string of data returned by server
+   */
   b64Data: string;
+  /**
+   * String indexed object for headers returned by Server
+   */
   headers: ResponseHeaders;
+  /**
+   * The response code for the request as returned by the server
+   * Note: a respCode > 299 is considered an error by the client and throws
+   */
   respCode: number;
+  /**
+   * If the mimeType of the payload is valid JSON then this field will
+   * be populated with parsed JSON (object)
+   */
   json?: T;
 }
 interface ProcessedRequestResponse extends RequestResponse {}
@@ -46,7 +75,7 @@ interface NativeTor {
 }
 type TorType = {
   /**
-   * Sen d a GET request routed through the SOCKS proxy on the native side
+   * Send a GET request routed through the SOCKS proxy on the native side
    * Starts the Tor Daemon automatically if not already started
    * @param url
    * @param headers
