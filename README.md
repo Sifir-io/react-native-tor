@@ -25,10 +25,9 @@ const makeTorRequest = async()=>{
 
     try{
        // Use built in client to make REST calls to .onion urls routed through the Sock5 proxy !
-       const resp = await tor.get('http://some.onion',{'Authoriztion': 'sometoken'});
+       const resp = await tor.get('http://some.onion',{'Authorization': 'sometoken'});
        // Note: self signed https endpoints, custom headers and multiform/json payloads supported!
-       await tor.post('https://someother.onion',JSON.stringify(resp.json),{'Authoriztion': 'sometoken'},true);
-
+       await tor.post('https://someother.onion',JSON.stringify(resp.json),{'Authorization': 'sometoken'},true);
     } catch(error){
       // Catch a network or server error like you normally with any other fetch library
     }
@@ -48,7 +47,7 @@ If you think this is awesome, please consider [contributing to Privacy and Opens
 - TS Typed API for sanity.
 
 ## Disclaimer
-Early Beta software provided as is and accepts no responsibility for use.
+*~~~ Beta software provided as is. I Accept no responsibility for use or misuse of Tor or this package. ~~~*
 
 ---
 
@@ -57,7 +56,6 @@ Privacy is important and should not be hard.
 - Users shouldn't be expected to install 3rd party apps and setup custom VPNS to get more privacy.
 - Devs shouldn't have to jump through hoops to get Onion urls routing correctly
 - React native is an awesome tool and this brings awesome privacy to it.
-
 
 ## What This Does ?
 Embeds Tor Daemon + Onion Routing into your App, removing the dependency on Orbot and allowing Tor usage on IOS
@@ -201,8 +199,8 @@ You can also check the provided [Example Application](example/src/App.tsx) for a
 ---
 ## Acknowledgments
 
-- [Torproject](https://www.torproject.org) For everything they do.
-- [@afilini](https://github.com/afilini) for his amazing work on libtor and constant support!
+- [Torproject](https://www.torproject.org) for everything they do.
+- [@afilini](https://github.com/afilini) for his amazing work on [libtor](https://github.com/MagicalBitcoin/libtor) and constant support!
 
 ## Contributing to Privacy and Opensource
 
@@ -216,7 +214,7 @@ If you find this module helpful or useful please do consider support it by contr
 If you found this useful please help fund development for this and other privacy focused projects,
 
 - Send some Bitcoin/SATS:
-bc1q8442hgk32h2x5undjlnu56q2ewnmnpys30zstj
+`bc1q8442hgk32h2x5undjlnu56q2ewnmnpys30zstj`
 
 - Fund Tor projects and exit nodes
 https://blog.torproject.org/support-tor-network-donate-exit-node-providers
@@ -227,7 +225,7 @@ https://liberapay.com/gabidi/
 ### Coding
 - Check the TODO list below for some ideas on items flagged as valuable for users of Tor.
 - Check Development section below for instructions
--
+
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
 
 ## Development and Building from Scratch
@@ -273,21 +271,22 @@ Know someone who want to add a bit more privacy to their Application / Product ?
 - Better API Docs
 - Event emitter from Rust to Native on Boostrap status
 - Enable secret service API
-    - Start new secret service on phone.
-    - Restore secret service from key.
+    - Start new hidden service on phone.
+    - Restore hidden service from key.
+- Capture daemon logs into files.
 
 ### Backlog
 
 - Search for available ports for socks proxy for iOS
-- Return a Context API for each component building.
+- Return a Context API (status, etc..) as part of the package to make it easier for developers to build reactive components on topof.
 - Build on Request capability
   - PUT calls
   - DELETE
     - Add body support
   - Websockets
   - Streaming ?
-  - Maybe make it as a NetworkExtension and create VPN for app so we can use started REST Libraries ?
-
+- Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)
+- Investigate the possibility of creating a NetworkExtension on iOS which act as a VPN for the app which regular REST libaries can be used on.
 
 ## License
 
