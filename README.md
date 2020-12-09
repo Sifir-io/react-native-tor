@@ -7,7 +7,7 @@ In your project:
 ```shell script
 npm i react-native-tor
 // for ios builds
-// cd ios && pod install
+npx pod-install
 ```
 
 then
