@@ -69,7 +69,7 @@ This module uses multiple layers:
 
 
 ### Requirements
-- ios > 11.0
+- ios > 11.1
 - Android minSdk > 26
 
 ### Installation
@@ -89,6 +89,10 @@ yarn add react-native-tor
 cd ios/
 pod install
 ```
+
+*iOS Projects note*:
+- iOS 11.1 > only: Support iOS Version is 11.1 and higher (#6)
+- Bitcode not supported: Set ` Build Settings > Build Options > Enable Bitcode` to `No` for both Debug and Release.
 
 ### Usage Example
 
