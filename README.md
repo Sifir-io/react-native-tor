@@ -69,7 +69,7 @@ This module uses multiple layers:
 
 
 ### Requirements
-- ios > 10.0
+- ios > 11.0
 - Android minSdk > 26
 
 ### Installation
@@ -285,7 +285,7 @@ Know someone who want to add a bit more privacy to their Application / Product ?
     - Add body support
   - Websockets
   - Streaming ?
-- Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)
+- ~Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)~
 - Investigate the possibility of creating a NetworkExtension on iOS which act as a VPN for the app which regular REST libaries can be used on.
 
 ## License
