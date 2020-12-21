@@ -1,0 +1,5 @@
+framework module "Libsifir_ios" {
+    header "Libsifir_ios.h"
+    export *
+}
+
