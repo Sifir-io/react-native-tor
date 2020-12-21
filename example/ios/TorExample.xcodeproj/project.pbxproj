@@ -12,11 +12,12 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		20F357B024636CDF00C146DC /* File.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F357AF24636CDF00C146DC /* File.swift */; };
-		BB5FF62C1C608C8599D6014B /* libPods-TorExample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 31C15CFB9EF7CBD68C660F2A /* libPods-TorExample.a */; };
+		8D2733CF6B1235F7D64FA271 /* libPods-TorExample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0BFFA8A2D6F801BDCF3C3412 /* libPods-TorExample.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		008F07F21AC5B25A0029DE68 /* main.jsbundle */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = main.jsbundle; sourceTree = "<group>"; };
+		0BFFA8A2D6F801BDCF3C3412 /* libPods-TorExample.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TorExample.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07F961A680F5B00A75B9A /* TorExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TorExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FAF1A68108700A75B9A /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = AppDelegate.h; path = TorExample/AppDelegate.h; sourceTree = "<group>"; };
 		13B07FB01A68108700A75B9A /* AppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = AppDelegate.m; path = TorExample/AppDelegate.m; sourceTree = "<group>"; };
@@ -27,11 +28,10 @@
 		20F357AD24636CDE00C146DC /* TorExample-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "TorExample-Bridging-Header.h"; sourceTree = "<group>"; };
 		20F357AE24636CDF00C146DC /* TorExample-Bridging-Header.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "TorExample-Bridging-Header.h"; sourceTree = "<group>"; };
 		20F357AF24636CDF00C146DC /* File.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = File.swift; sourceTree = "<group>"; };
-		31C15CFB9EF7CBD68C660F2A /* libPods-TorExample.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-TorExample.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		4D7192F03A36A017E887435B /* Pods-TorExample.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TorExample.release.xcconfig"; path = "Target Support Files/Pods-TorExample/Pods-TorExample.release.xcconfig"; sourceTree = "<group>"; };
 		85A481D925692C9D00942D45 /* TorExample.profdata */ = {isa = PBXFileReference; lastKnownFileType = file; path = TorExample.profdata; sourceTree = "<group>"; };
 		85C8E5052590FB1800701A4C /* libsifir_ios.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = libsifir_ios.framework; path = ../../ios/library/universal/libsifir_ios.framework; sourceTree = "<group>"; };
-		871719007ECC5EAD276C345C /* Pods-TorExample.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TorExample.debug.xcconfig"; path = "Target Support Files/Pods-TorExample/Pods-TorExample.debug.xcconfig"; sourceTree = "<group>"; };
+		9DC4B3F2D0FB9A844F3616A8 /* Pods-TorExample.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TorExample.release.xcconfig"; path = "Target Support Files/Pods-TorExample/Pods-TorExample.release.xcconfig"; sourceTree = "<group>"; };
+		E29E295C408F74352964AE3F /* Pods-TorExample.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-TorExample.debug.xcconfig"; path = "Target Support Files/Pods-TorExample/Pods-TorExample.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -40,7 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BB5FF62C1C608C8599D6014B /* libPods-TorExample.a in Frameworks */,
+				8D2733CF6B1235F7D64FA271 /* libPods-TorExample.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,8 +64,8 @@
 		1CFFDEF7170271C97B8B7E5A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				871719007ECC5EAD276C345C /* Pods-TorExample.debug.xcconfig */,
-				4D7192F03A36A017E887435B /* Pods-TorExample.release.xcconfig */,
+				E29E295C408F74352964AE3F /* Pods-TorExample.debug.xcconfig */,
+				9DC4B3F2D0FB9A844F3616A8 /* Pods-TorExample.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -75,7 +75,7 @@
 			children = (
 				85C8E5052590FB1800701A4C /* libsifir_ios.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				31C15CFB9EF7CBD68C660F2A /* libPods-TorExample.a */,
+				0BFFA8A2D6F801BDCF3C3412 /* libPods-TorExample.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -128,13 +128,13 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "TorExample" */;
 			buildPhases = (
-				CCCC07BCAFDEF1FCADC0D0C9 /* [CP] Check Pods Manifest.lock */,
+				DDE0C70ACB6DE4C37B3B4C4C /* [CP] Check Pods Manifest.lock */,
 				FD10A7F022414F080027D42C /* Start Packager */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
-				F7B61BE004B04AA11CD603C2 /* [CP] Embed Pods Frameworks */,
+				BF42A7D72DA58672CCAA6EE3 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -206,7 +206,25 @@
 			shellPath = /bin/sh;
 			shellScript = "export NODE_BINARY=node\n../node_modules/react-native/scripts/react-native-xcode.sh\n";
 		};
-		CCCC07BCAFDEF1FCADC0D0C9 /* [CP] Check Pods Manifest.lock */ = {
+		BF42A7D72DA58672CCAA6EE3 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-TorExample/Pods-TorExample-frameworks.sh",
+				"${PODS_ROOT}/../../../ios/Libsifir_ios.framework",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Libsifir_ios.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TorExample/Pods-TorExample-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		DDE0C70ACB6DE4C37B3B4C4C /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -226,24 +244,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		F7B61BE004B04AA11CD603C2 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-TorExample/Pods-TorExample-frameworks.sh",
-				"${PODS_ROOT}/../../../ios/Libsifir_ios.framework",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Libsifir_ios.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-TorExample/Pods-TorExample-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		FD10A7F022414F080027D42C /* Start Packager */ = {
@@ -295,7 +295,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 871719007ECC5EAD276C345C /* Pods-TorExample.debug.xcconfig */;
+			baseConfigurationReference = E29E295C408F74352964AE3F /* Pods-TorExample.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -328,7 +328,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4D7192F03A36A017E887435B /* Pods-TorExample.release.xcconfig */;
+			baseConfigurationReference = 9DC4B3F2D0FB9A844F3616A8 /* Pods-TorExample.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
