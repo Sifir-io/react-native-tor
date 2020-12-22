@@ -127,5 +127,5 @@ dependencies {
   // noinspection GradleDynamicVersion
   api 'com.facebook.react:react-native:+'
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  implementation fileTree(include: ['*.aar'], dir: 'libs')
+  compileOnly files('libs/sifir_android.aar')
 }
