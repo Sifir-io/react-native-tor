@@ -3,7 +3,9 @@ package com.reactnativetor
 import android.os.AsyncTask
 import android.util.Log
 import com.facebook.react.bridge.*
+import com.sifir.tor.DataObserver
 import com.sifir.tor.OwnedTorService
+import com.sifir.tor.TcpSocksStream
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -14,12 +16,31 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 
-
+/**
+ * Wraps DataObserver interface into event emitter
+ * Sent across FFI and will emit on data based on target-data or target-error topic
+ */
+class DataObserverEmitter(target:String, reactContext: ReactApplicationContext) : DataObserver{
+  private val target = target;
+  private val context = reactContext;
+  override fun onData(p0: String?) {
+    context
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$target-data", p0)
+  }
+  override fun onError(p0: String?) {
+    context
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$target-error", p0)
+  }
+}
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
+  private var _streams:HashMap<String,TcpSocksStream> = HashMap();
 
   /**
    * Gets a client that accepts all SSL certs
@@ -164,6 +185,52 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.resolve(true);
     } catch (e: Exception) {
       Log.d("TorBridge", "error on stopDaemon$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun startTcpConn(target:String,promise:Promise) {
+    try {
+      if (service != null) {
+        Throwable("Service already running, call stopDaemon first")
+      }
+      // FIXME check if stream already exists and remove it
+      val stream = TcpSocksStream(target,"0.0.0.0:"+service?.socksPort);
+      stream.on_data(DataObserverEmitter(target,this.reactApplicationContext));
+      _streams.set(target,stream);
+      promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on startTcpConn$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun sendTcpConnMsg(target:String,msg:String,promise:Promise) {
+    try {
+      if (service != null) {
+        Throwable("Tor Service not running, call startDaemon first")
+      }
+      var stream = _streams.get(target);
+      if(stream == null){
+        Throwable("Stream for target is not initialized, call startTcpConn first");
+      }
+      stream?.send_data(msg);
+      promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on sendTcpConnMsg$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun stopTcpConn(target:String,promise:Promise) {
+    try {
+     _streams.remove(target);
+      promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on stopTcpConn$e")
       promise.reject(e)
     }
   }

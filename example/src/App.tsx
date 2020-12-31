@@ -74,9 +74,28 @@ export default function App() {
       console.error('Error getDeamonStatus', err);
     }
   };
+  // FIXME update this and test multiple message and lifescycle of connectin ?
+  const sendTcpMsg = async () => {
+    try {
+      let target =
+        'udfpzbte2hommnvag5f3qlouqkhvp3xybhlus2yvfeqdwlhjroe4bbyd.onion:60001';
+      let msg =
+        '{ "id": 1, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n';
+      let conn = await client.createTcpConnection({ target }, (data, err) => {
+        console.log('tcp got msg', data, err);
+      });
+      await conn.write(msg);
+      conn.close();
+    } catch (err) {
+      console.error('Error SendingTcpMSg', err);
+    }
+  };
   return (
     <View style={styles.container}>
       <View>
+        <Button onPress={startTor} title="Start Tor">
+          <Text>Start Tor</Text>
+        </Button>
         <Button onPress={startTor} title="Start Tor">
           <Text>Start Tor</Text>
         </Button>
@@ -97,6 +116,7 @@ export default function App() {
             />
             <Button onPress={getOnion} title="Get onion" />
             <Button onPress={postOnion} title="POST onion" />
+            <Button onPress={sendTcpMsg} title="Open,Send and Close TCP" />
             <View>
               <Text> Trust Self Signed SSL Toggle</Text>
               <Button

@@ -1,5 +1,6 @@
 import {
   NativeModules,
+  NativeEventEmitter,
   AppState,
   AppStateStatus,
   Platform,
@@ -62,8 +63,6 @@ interface ProcessedRequestResponse extends RequestResponse {}
  * Used internally, public calls should be made on the returned TorType
  */
 interface NativeTor {
-  startDaemon(): Promise<SocksPortNumber>;
-  stopDaemon(): Promise<void>;
   getDaemonStatus(): Promise<string>;
   request<T extends RequestMethod>(
     url: string,
@@ -72,7 +71,43 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
+  startTcpConn(target: string): Promise<boolean>;
+  sendTcpConnMsg(target: string, msg: string): Promise<boolean>;
+  stopTcpConn(target: string): Promise<boolean>;
 }
+
+type TcpConnDatahandler = (data: string, err?: any) => void;
+interface TcpStream {
+  close(): Promise<boolean>;
+  write(msg: string): Promise<boolean>;
+}
+/**
+ * Factory function to create a persistant TcpStream connection to a target
+ * Wraps the native side emitter and subscribes to the targets data messages (string)
+ * @returns {close,write}
+ */
+const createTcpConnection = async (
+  param: { target: string },
+  onData: TcpConnDatahandler
+): Promise<TcpStream> => {
+  const { target } = param;
+  await NativeModules.TorBridge.startTcpConn(target);
+  const emitter = new NativeEventEmitter(NativeModules.TorBridge);
+  // TODO error handle -> Emit writablemap on native side
+  const lnsr_handle = emitter.addListener(`${target}-data`, (event) => {
+    console.log(`Torbridge:Tcpconn:${target}-data`, event);
+    onData(event);
+  });
+
+  const write = (msg: string) =>
+    NativeModules.TorBridge.sendTcpConnMsg(target, msg);
+  const close = () => {
+    lnsr_handle.remove();
+    return NativeModules.TorBridge.stopTcpConn(target);
+  };
+  return { close, write };
+};
+
 type TorType = {
   /**
    * Send a GET request routed through the SOCKS proxy on the native side
@@ -137,6 +172,12 @@ type TorType = {
    * Should not be used unless you know what you are doing.
    */
   request: NativeTor['request'];
+
+  /**
+   * Factory function for creating a peristant Tcp connection to a target
+   * See createTcpConnectio;
+   */
+  createTcpConnection: typeof createTcpConnection;
 };
 
 const TorBridge: NativeTor = NativeModules.TorBridge;
@@ -274,5 +315,6 @@ export default ({
     stopIfRunning,
     request: TorBridge.request,
     getDaemonStatus: TorBridge.getDaemonStatus,
+    createTcpConnection,
   } as TorType;
 };
