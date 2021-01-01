@@ -207,7 +207,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   }
 
   @ReactMethod
-  fun sendTcpConnMsg(target:String,msg:String,promise:Promise) {
+  fun sendTcpConnMsg(target:String,msg:String,timeoutSec:Double,promise:Promise) {
     try {
       if (service != null) {
         Throwable("Tor Service not running, call startDaemon first")
@@ -216,7 +216,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       if(stream == null){
         Throwable("Stream for target is not initialized, call startTcpConn first");
       }
-      stream?.send_data(msg);
+      stream?.send_data(msg,timeoutSec.toLong());
       promise.resolve(true);
     } catch (e: Exception) {
       Log.d("TorBridge", "error on sendTcpConnMsg$e")

@@ -86,8 +86,9 @@ interface NativeTor {
 
 /**
  * Tcpstream data handler.
+ * If err is populated then there was an error
  */
-type TcpConnDatahandler = (data: string, err?: any) => void;
+type TcpConnDatahandler = (data?: string, err?: any) => void;
 
 /**
  * Interface returned by createTcpConnection factory
@@ -118,23 +119,36 @@ const createTcpConnection = async (
 ): Promise<TcpStream> => {
   const { target } = param;
   await NativeModules.TorBridge.startTcpConn(target);
-  // TODO error handle -> Emit writablemap on native side
-  let lsnr_handle: EmitterSubscription;
+  let lsnr_handle: EmitterSubscription[] = [];
   if (Platform.OS === 'android') {
-    lsnr_handle = DeviceEventEmitter.addListener(`${target}-data`, (event) => {
-      onData(event);
-    });
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${target}-data`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${target}-error`, (event) => {
+        onData(undefined, event);
+      })
+    );
   } else if (Platform.OS === 'ios') {
     const emitter = new NativeEventEmitter(NativeModules.TorBridge);
-    lsnr_handle = emitter.addListener(`torTcpStreamData`, (event) => {
-      onData(event);
-    });
+    lsnr_handle.push(
+      emitter.addListener(`torTcpStreamData`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      emitter.addListener(`torTcpStreamError`, (event) => {
+        onData(undefined, event);
+      })
+    );
   }
   const writeTimeout = param.writeTimeout || 7;
   const write = (msg: string) =>
     NativeModules.TorBridge.sendTcpConnMsg(target, msg, writeTimeout);
   const close = () => {
-    lsnr_handle.remove();
+    lsnr_handle.map((e) => e.remove());
     return NativeModules.TorBridge.stopTcpConn(target);
   };
   return { close, write };
