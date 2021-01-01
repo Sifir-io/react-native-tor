@@ -41,7 +41,8 @@ If you think this is awesome, please consider [contributing to Privacy and Opens
 
 ## Highlights
 - Embeds a fully functional Tor Daemon, with its own circuit (non exit) removing the dependency on Orbot and allowing Tor usage on IOS.
-- Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..!
+- Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..
+- Tcp socket support via a event like interface!
 - [WIP] Start a hidden service accessible via an Onion URL directly on your phone (in final test for upcoming 0.0.2 release)
 - Provides guard functions and state management options to autostart/stop the daemon when REST calls are initiated and/or the application is backgrounded/foregrounded
 - TS Typed API for sanity.
@@ -94,7 +95,7 @@ pod install
 - iOS 11.1 > only: Support iOS Version is 11.1 and higher (#6)
 - Bitcode not supported: Set ` Build Settings > Build Options > Enable Bitcode` to `No` for both Debug and Release.
 
-### Usage Example
+### REST Usage Example
 
 ```js
 import Tor from "react-native-tor";
@@ -113,6 +114,32 @@ try{
     const resp = tor.get('');
 } catch(error){
     // Client throws on Network errors and Response codes > 299
+}
+```
+### Socket Usage Example
+
+```js
+import Tor from 'react-native-tor';
+const tor = Tor();
+await tor.startIfNotStarted()
+const target = 'kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001';
+const conn = await tor.createTcpConnection({ target }, (data, err) => {
+  if(err){
+    console.error('error sending msg',err);
+    return
+  }
+  console.log('recieved tcp msg', data);
+} );
+
+
+try {
+  await conn.write(`{ "id": 1, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n`);
+  await conn.write(`{ "id": 2, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n`);
+  // ... moar writes
+} catch (err) {
+  console.error('Error SendingTcpMSg', err);
+}
+await conn.close();
 }
 ```
 ## API reference
@@ -195,6 +222,11 @@ declare type TorType = {
      * Should not be used unless you know what you are doing.
      */
     request: NativeTor['request'];
+    /**
+     * Factory function for creating a peristant Tcp connection to a target
+     * See createTcpConnectio;
+     */
+    createTcpConnection: typeof createTcpConnection;
 };
 ```
 
@@ -287,7 +319,7 @@ Know someone who want to add a bit more privacy to their Application / Product ?
   - PUT calls
   - DELETE
     - Add body support
-  - Websockets
+  - ~Sockets~
   - Streaming ?
 - ~Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)~
 - Investigate the possibility of creating a NetworkExtension on iOS which act as a VPN for the app which regular REST libaries can be used on.

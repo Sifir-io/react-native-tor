@@ -80,15 +80,33 @@ interface NativeTor {
   stopTcpConn(target: string): Promise<boolean>;
 }
 
+/**
+ * Tcpstream data handler.
+ */
 type TcpConnDatahandler = (data: string, err?: any) => void;
+
+/**
+ * Interface returned by createTcpConnection factory
+ */
 interface TcpStream {
+  /**
+   * Called to close and end the Tcp connection
+   */
   close(): Promise<boolean>;
+  /**
+   * Send a message (write on socket)
+   * @param msg
+   */
   write(msg: string): Promise<boolean>;
 }
+
 /**
- * Factory function to create a persistant TcpStream connection to a target
+ * /**
+ * Factory function to create a persistent TcpStream connection to a target
  * Wraps the native side emitter and subscribes to the targets data messages (string)
- * @returns {close,write}
+ * @param param {target: String} : The target url to connect to (with Port)
+ * @param onData TcpConnDatahandler callback called when data is received for this connection
+ * @returns TcpStream
  */
 const createTcpConnection = async (
   param: { target: string },
