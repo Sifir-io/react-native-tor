@@ -76,7 +76,11 @@ interface NativeTor {
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
   startTcpConn(target: string): Promise<boolean>;
-  sendTcpConnMsg(target: string, msg: string): Promise<boolean>;
+  sendTcpConnMsg(
+    target: string,
+    msg: string,
+    timeoutSeconds: number
+  ): Promise<boolean>;
   stopTcpConn(target: string): Promise<boolean>;
 }
 
@@ -109,7 +113,7 @@ interface TcpStream {
  * @returns TcpStream
  */
 const createTcpConnection = async (
-  param: { target: string },
+  param: { target: string; writeTimeout?: number },
   onData: TcpConnDatahandler
 ): Promise<TcpStream> => {
   const { target } = param;
@@ -118,19 +122,17 @@ const createTcpConnection = async (
   let lsnr_handle: EmitterSubscription;
   if (Platform.OS === 'android') {
     lsnr_handle = DeviceEventEmitter.addListener(`${target}-data`, (event) => {
-      console.log(`Torbridge:Tcpconn:${target}-data`, event);
       onData(event);
     });
   } else if (Platform.OS === 'ios') {
     const emitter = new NativeEventEmitter(NativeModules.TorBridge);
     lsnr_handle = emitter.addListener(`torTcpStreamData`, (event) => {
-      console.log(`Torbridge:Tcpconn:${target}-data`, event);
       onData(event);
     });
   }
-
+  const writeTimeout = param.writeTimeout || 7;
   const write = (msg: string) =>
-    NativeModules.TorBridge.sendTcpConnMsg(target, msg);
+    NativeModules.TorBridge.sendTcpConnMsg(target, msg, writeTimeout);
   const close = () => {
     lsnr_handle.remove();
     return NativeModules.TorBridge.stopTcpConn(target);

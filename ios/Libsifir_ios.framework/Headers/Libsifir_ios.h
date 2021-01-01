@@ -34,8 +34,8 @@ typedef struct {
 
 typedef struct {
   void *context;
-  void (*on_success)(const char*, const void*);
-  void (*on_err)(const char*, const void*);
+  void (*on_success)(char*, const void*);
+  void (*on_err)(char*, const void*);
 } Observer;
 
 BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
@@ -62,7 +62,7 @@ ResultMessage *tcp_stream_on_data(TcpSocksStream_t *stream, Observer observer);
  *# Safety
  * Send a Message over a tcpStream
  */
-ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream, const char *msg);
+ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream, const char *msg, uint64_t timeout);
 
 /**
  *# Safety

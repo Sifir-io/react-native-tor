@@ -42,6 +42,7 @@ RCT_EXTERN_METHOD(
 RCT_EXTERN_METHOD(
         sendTcpConnMsg:(NSString*)target
         msg:(NSString*)msg
+        timeoutSec:(nonnull NSNumber*)timeoutSec
         resolver:(RCTPromiseResolveBlock)resolve
         rejecter: (RCTPromiseRejectBlock)reject
 )
