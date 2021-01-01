@@ -1,9 +1,11 @@
 import {
   NativeModules,
+  DeviceEventEmitter,
   NativeEventEmitter,
   AppState,
   AppStateStatus,
   Platform,
+  EmitterSubscription,
 } from 'react-native';
 
 type SocksPortNumber = number;
@@ -63,6 +65,8 @@ interface ProcessedRequestResponse extends RequestResponse {}
  * Used internally, public calls should be made on the returned TorType
  */
 interface NativeTor {
+  startDaemon(): Promise<SocksPortNumber>;
+  stopDaemon(): Promise<void>;
   getDaemonStatus(): Promise<string>;
   request<T extends RequestMethod>(
     url: string,
@@ -92,17 +96,25 @@ const createTcpConnection = async (
 ): Promise<TcpStream> => {
   const { target } = param;
   await NativeModules.TorBridge.startTcpConn(target);
-  const emitter = new NativeEventEmitter(NativeModules.TorBridge);
   // TODO error handle -> Emit writablemap on native side
-  const lnsr_handle = emitter.addListener(`${target}-data`, (event) => {
-    console.log(`Torbridge:Tcpconn:${target}-data`, event);
-    onData(event);
-  });
+  let lsnr_handle: EmitterSubscription;
+  if (Platform.OS === 'android') {
+    lsnr_handle = DeviceEventEmitter.addListener(`${target}-data`, (event) => {
+      console.log(`Torbridge:Tcpconn:${target}-data`, event);
+      onData(event);
+    });
+  } else if (Platform.OS === 'ios') {
+    const emitter = new NativeEventEmitter(NativeModules.TorBridge);
+    lsnr_handle = emitter.addListener(`torTcpStreamData`, (event) => {
+      console.log(`Torbridge:Tcpconn:${target}-data`, event);
+      onData(event);
+    });
+  }
 
   const write = (msg: string) =>
     NativeModules.TorBridge.sendTcpConnMsg(target, msg);
   const close = () => {
-    lnsr_handle.remove();
+    lsnr_handle.remove();
     return NativeModules.TorBridge.stopTcpConn(target);
   };
   return { close, write };

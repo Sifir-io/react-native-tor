@@ -2,7 +2,11 @@ import * as React from 'react';
 import { StyleSheet, View, Text, Button, TextInput } from 'react-native';
 import TorBridge from 'react-native-tor';
 
+type Await<T> = T extends PromiseLike<infer U> ? U : T;
 const client = TorBridge();
+let tcpStream: Await<
+  ReturnType<typeof client['createTcpConnection']>
+> | null = null;
 
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
@@ -10,9 +14,7 @@ export default function App() {
   const [onion, setOnion] = React.useState<string | undefined>(
     'http://3g2upl4pq6kufc4m.onion'
   );
-  //const [clearnetJson ] = React.useState<string | undefined>(
-  //  'https://api.jsonapi.co/rest/v1/user/list'
-  //);
+  const [hasStream, setHasStream] = React.useState(false);
   React.useEffect(() => {
     _init();
   }, []);
@@ -74,18 +76,36 @@ export default function App() {
       console.error('Error getDeamonStatus', err);
     }
   };
-  // FIXME update this and test multiple message and lifescycle of connectin ?
   const sendTcpMsg = async () => {
     try {
+      let msg = `{ "id": 1, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n`;
+      if (!tcpStream) throw 'Stream not set';
+      await tcpStream.write(msg);
+    } catch (err) {
+      console.error('Error SendingTcpMSg', err);
+    }
+  };
+  const startTcpStream = async () => {
+    try {
       let target =
-        'udfpzbte2hommnvag5f3qlouqkhvp3xybhlus2yvfeqdwlhjroe4bbyd.onion:60001';
-      let msg =
-        '{ "id": 1, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n';
-      let conn = await client.createTcpConnection({ target }, (data, err) => {
+        'kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001';
+      console.log('starting');
+      const conn = await client.createTcpConnection({ target }, (data, err) => {
         console.log('tcp got msg', data, err);
       });
-      await conn.write(msg);
-      conn.close();
+      console.log('after');
+      tcpStream = conn;
+      setHasStream(true);
+    } catch (err) {
+      console.error('Error SendingTcpMSg', err);
+    }
+  };
+  const closeTcpStream = async () => {
+    try {
+      if (!tcpStream) throw 'Stream not set';
+      await tcpStream.close();
+      tcpStream = null;
+      setHasStream(false);
     } catch (err) {
       console.error('Error SendingTcpMSg', err);
     }
@@ -96,10 +116,6 @@ export default function App() {
         <Button onPress={startTor} title="Start Tor">
           <Text>Start Tor</Text>
         </Button>
-        <Button onPress={startTor} title="Start Tor">
-          <Text>Start Tor</Text>
-        </Button>
-
         <Button onPress={stopTor} title="Stop Tor" disabled={!socksPort}>
           <Text>Stop Tor</Text>
         </Button>
@@ -116,7 +132,13 @@ export default function App() {
             />
             <Button onPress={getOnion} title="Get onion" />
             <Button onPress={postOnion} title="POST onion" />
-            <Button onPress={sendTcpMsg} title="Open,Send and Close TCP" />
+            <Button onPress={startTcpStream} title="Start Tcp Stream" />
+            {hasStream && (
+              <View>
+                <Button onPress={sendTcpMsg} title="Send Tcp Msg" />
+                <Button onPress={closeTcpStream} title="Close Tcp Stream" />
+              </View>
+            )}
             <View>
               <Text> Trust Self Signed SSL Toggle</Text>
               <Button
