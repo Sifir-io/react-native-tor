@@ -306,7 +306,7 @@ class Tor: RCTEventEmitter {
             reject("TOR.TCPCONN.sendTcpConnMsg","Stream not detected",NSError.init(domain: "TOR", code: 99));
             return;
         }
-        let result = tcp_stream_send_msg(stream, msg,UInt64(timeoutSec)).pointee;
+        let result = tcp_stream_send_msg(stream, msg,timeoutSec.uint64Value).pointee;
         switch(result.tag){
         case Success:
             resolve(true);
