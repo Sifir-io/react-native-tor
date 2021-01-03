@@ -192,8 +192,8 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   @ReactMethod
   fun startTcpConn(target:String,promise:Promise) {
     try {
-      if (service != null) {
-        Throwable("Service already running, call stopDaemon first")
+      if (service == null) {
+        throw Throwable("Tor service not running, call startDaemon first")
       }
       // FIXME check if stream already exists and remove it
       val stream = TcpSocksStream(target,"0.0.0.0:"+service?.socksPort);
@@ -209,12 +209,12 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   @ReactMethod
   fun sendTcpConnMsg(target:String,msg:String,timeoutSec:Double,promise:Promise) {
     try {
-      if (service != null) {
-        Throwable("Tor Service not running, call startDaemon first")
+      if (service == null) {
+        throw Throwable("Tor Service not running, call startDaemon first")
       }
       var stream = _streams.get(target);
       if(stream == null){
-        Throwable("Stream for target is not initialized, call startTcpConn first");
+        throw Throwable("Stream for target is not initialized, call startTcpConn first");
       }
       stream?.send_data(msg,timeoutSec.toLong());
       promise.resolve(true);
