@@ -117,6 +117,7 @@ const createTcpConnection = async (
   param: { target: string; writeTimeout?: number },
   onData: TcpConnDatahandler
 ): Promise<TcpStream> => {
+  let lastAppState: AppStateStatus = 'active';
   const { target } = param;
   await NativeModules.TorBridge.startTcpConn(target);
   let lsnr_handle: EmitterSubscription[] = [];
@@ -151,6 +152,19 @@ const createTcpConnection = async (
     lsnr_handle.map((e) => e.remove());
     return NativeModules.TorBridge.stopTcpConn(target);
   };
+
+  // Monitor the status of the Tor bridge on appState
+  // if Tor bridge is not active (has been shutdown etc..) then streams are likley broken
+  // and we should clean and close all streams
+  AppState.addEventListener('change', (nextAppState) => {
+    if (lastAppState.match(/active/) && nextAppState === 'background') {
+      const status = NativeModules.TorBridge.getDaemonStatus();
+      if (status !== 'DONE') {
+        console.warn(`closing tcp stream for ${target}`);
+        close();
+      }
+    }
+  });
   return { close, write };
 };
 
