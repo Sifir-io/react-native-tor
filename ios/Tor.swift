@@ -259,6 +259,12 @@ class Tor: RCTEventEmitter {
             let observerWrapper = ObserverSwift(onSuccess:{ (data) in
                 self.sendEvent(withName: "torTcpStreamData", body: data)
             }, onError:{ (data) in
+                // On Eof destrory stream and remove from map
+                // TODO update this when streaming streams
+                if(data == "EOF"){
+                    tcp_stream_destroy(stream);
+                    self.streams[target] = nil;
+                }
                 self.sendEvent(withName: "torTcpStreamError", body: data)
             },target:target);
             // Prepare pointer to context and observer callbacks as Retained
