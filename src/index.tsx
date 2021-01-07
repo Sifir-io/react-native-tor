@@ -128,6 +128,11 @@ const createTcpConnection = async (
     );
     lsnr_handle.push(
       DeviceEventEmitter.addListener(`${target}-error`, (event) => {
+        // FIXME need to clean lsners on EOF
+        // should it be Kotlin/Swift or JS side that does it?
+        if (event === 'EOF') {
+          close();
+        }
         onData(undefined, event);
       })
     );
