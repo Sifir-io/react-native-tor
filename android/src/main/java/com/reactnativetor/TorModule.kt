@@ -24,17 +24,30 @@ import java.util.concurrent.Executors
  * Wraps DataObserver interface into event emitter
  * Sent across FFI and will emit on data based on target-data or target-error topic
  */
-class DataObserverEmitter(target: String, reactContext: ReactApplicationContext) : DataObserver {
-  private val target = target;
-  private val context = reactContext;
+class DataObserverEmitter(
+  private val target: String,
+  private val reactContext: ReactApplicationContext,
+  private val streams: HashMap<String, TcpSocksStream>
+) : DataObserver {
   override fun onData(p0: String?) {
-    context
+    reactContext
       .getJSModule(RCTDeviceEventEmitter::class.java)
       .emit("$target-data", p0)
   }
 
   override fun onError(p0: String?) {
-    context
+    // Shutdown and remove it from map on EOF
+    // To prevent invalid memory pointer
+    // TODO Change this when we implement streaming streams.
+    if (p0 == "EOF") {
+      try {
+        Log.d("TorBridge", "DataObserver: EOF detected from '$target', deleting stream..")
+        streams.remove(target)?.delete();
+      } catch (e: Exception) {
+        Log.d("TorBridge", "DataObserver:Error deleting stream for '$target': $e")
+      }
+    }
+    reactContext
       .getJSModule(RCTDeviceEventEmitter::class.java)
       .emit("$target-error", p0)
   }
@@ -45,7 +58,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
   private var _streams: HashMap<String, TcpSocksStream> = HashMap();
-  val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
 
   /**
    * Gets a client that accepts all SSL certs
@@ -134,9 +147,6 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         promise.reject(e)
       }
     }
-    // TorBridgeAsyncTask(promise, client).executeOnExecutor(
-    //   AsyncTask.THREAD_POOL_EXECUTOR, param
-    // )
   }
 
 
@@ -208,7 +218,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         }
         // FIXME check if stream already exists and remove it
         TcpStreamStart(target, "0.0.0.0:${service?.socksPort}", {
-          it.on_data(DataObserverEmitter(target, this.reactApplicationContext));
+          it.on_data(DataObserverEmitter(target, this.reactApplicationContext, _streams));
           _streams.set(target, it);
           promise.resolve(true);
         }, {
@@ -237,7 +247,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     } catch (e: Exception) {
       Log.d("TorBridge", "error on sendTcpConnMsg$e")
       promise.reject(e)
-    } catch(e: Throwable){
+    } catch (e: Throwable) {
       Log.d("TorBridge", "error on sendTcpConnMsg$e")
       promise.reject(e)
     }
