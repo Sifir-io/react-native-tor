@@ -1,6 +1,5 @@
 package com.reactnativetor
 
-import android.os.AsyncTask
 import android.util.Base64
 import android.util.Log
 import com.facebook.react.bridge.*
@@ -22,9 +21,13 @@ sealed class RequestResult {
     RequestResult()
 }
 
-class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client: OkHttpClient) :
-  AsyncTask<TaskParam, String?, RequestResult?>() {
-  override fun onPostExecute(result: RequestResult?) {
+class TorBridgeRequest constructor(
+  protected var mPromise: Promise?,
+  protected var client: OkHttpClient,
+  protected val param: TaskParam
+) {
+
+  protected fun onPostExecute(result: RequestResult?){
     when (result) {
       is RequestResult.Error -> {
         if (result.error !== null) {
@@ -40,8 +43,7 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
   }
 
 
-  fun run(param: TaskParam): RequestResult {
-
+  public fun run() {
     val request = when (param.method.toUpperCase()) {
       "POST" -> {
         // Check Content-Type headers provided
@@ -94,25 +96,19 @@ class TorBridgeAsyncTask(protected var mPromise: Promise?, protected var client:
       }
       resp.putString("b64Data", Base64.encodeToString(body, Base64.DEFAULT))
 
-      return if (response.code() > 299) {
-        RequestResult.Error(
-          "Request Response Code ($respCode)",
-          body?.toString(Charsets.UTF_8),
-          null
+      if (response.code() > 299) {
+        onPostExecute(
+          RequestResult.Error(
+            "Request Response Code ($respCode)",
+            body?.toString(Charsets.UTF_8),
+            null
+          )
         );
       } else {
-        RequestResult.Success(resp);
+        onPostExecute(RequestResult.Success(resp));
       }
     }
   }
 
-  override fun doInBackground(vararg params: TaskParam?): RequestResult {
-    return try {
-      run(params[0]!!)
-    } catch (e: Exception) {
-      Log.d("TorBridge", "error doInBackground$e")
-      return RequestResult.Error("Error processing Request", null, e)
-    }
-  }
 
 }

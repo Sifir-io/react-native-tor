@@ -12,34 +12,18 @@ class StartParam(
   var path: String
 );
 
-class TorBridgeStartAsync(onSuccess: (service: OwnedTorService) -> Unit, onError: (e: Throwable) -> Unit) : AsyncTask<StartParam, String?, OwnedTorService?>() {
-  protected var error: Exception? = null
-  protected var onError = onError;
-  protected var onSuccess = onSuccess;
-
-  override fun onPostExecute(result: OwnedTorService?) {
-    if (error != null || result == null) {
-      Log.d("TorBridge:StartAsync", "error onPostExecute" + error.toString())
-      onError(error as Throwable);
-    } else {
-      onSuccess(result);
-    }
-    error = null
-  }
-
-  @Throws(IOException::class)
-  fun run(param: StartParam): OwnedTorService {
-    return OwnedTorService(TorServiceParam(param.path, param.socksPort));
-  }
-
-  override fun doInBackground(vararg params: StartParam?): OwnedTorService? {
-    return try {
-      run(params[0]!!)
-    } catch (e: Exception) {
-      Log.d("TorBridge", "error doInBackground$e")
-      error = e
-      return null;
+class TorBridgeStartAsync constructor(
+  private val param: StartParam,
+  private val onSuccess: (service: OwnedTorService) -> Unit,
+  private val onError: (e: Throwable) -> Unit
+) {
+  fun run() {
+    try {
+      val ownedTor = OwnedTorService(TorServiceParam(param.path, param.socksPort));
+      onSuccess(ownedTor);
+    } catch (e: Error) {
+      Log.d("TorBridge:StartAsync", "error onPostExecute$e")
+      onError(e as Throwable);
     }
   }
-
 }
