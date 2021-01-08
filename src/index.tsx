@@ -88,7 +88,7 @@ interface NativeTor {
  * Tcpstream data handler.
  * If err is populated then there was an error
  */
-type TcpConnDatahandler = (data?: string, err?: any) => void;
+type TcpConnDatahandler = (data?: string, err?: string) => void;
 
 /**
  * Interface returned by createTcpConnection factory
@@ -115,7 +115,9 @@ interface TcpStream {
  * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
  *       This will cause the module to drop the TcpConnection and remove all data event listeners.
  *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
- * @param param {target: String} : The target url to connect to (with Port)
+ * @param param {target: String, writeTimeout: Number} :
+ *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
+ *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
  * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
  * @returns TcpStream
  */
