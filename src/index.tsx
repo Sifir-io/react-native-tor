@@ -120,6 +120,18 @@ const createTcpConnection = async (
   const { target } = param;
   await NativeModules.TorBridge.startTcpConn(target);
   let lsnr_handle: EmitterSubscription[] = [];
+  /**
+   * Handles errors from Tcp Connection
+   * Mainly check for EOF (connection closed/end of stream) and removes lnsers
+   */
+  const onError = async (event: string) => {
+    if (event.toLowerCase() === 'eof') {
+      console.warn(
+        `Got to end of stream on TcpStream to ${target}. Removing listners`
+      );
+      await close();
+    }
+  };
   if (Platform.OS === 'android') {
     lsnr_handle.push(
       DeviceEventEmitter.addListener(`${target}-data`, (event) => {
@@ -127,13 +139,9 @@ const createTcpConnection = async (
       })
     );
     lsnr_handle.push(
-      DeviceEventEmitter.addListener(`${target}-error`, (event) => {
-        // FIXME need to clean lsners on EOF
-        // should it be Kotlin/Swift or JS side that does it?
-        if (event === 'EOF') {
-          close();
-        }
-        onData(undefined, event);
+      DeviceEventEmitter.addListener(`${target}-error`, async (event) => {
+        await onError(event);
+        await onData(undefined, event);
       })
     );
   } else if (Platform.OS === 'ios') {
@@ -144,8 +152,9 @@ const createTcpConnection = async (
       })
     );
     lsnr_handle.push(
-      emitter.addListener(`torTcpStreamError`, (event) => {
-        onData(undefined, event);
+      emitter.addListener(`torTcpStreamError`, async (event) => {
+        await onError(event);
+        await onData(undefined, event);
       })
     );
   }
