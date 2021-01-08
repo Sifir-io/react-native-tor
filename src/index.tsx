@@ -108,9 +108,15 @@ interface TcpStream {
 /**
  * /**
  * Factory function to create a persistent TcpStream connection to a target
- * Wraps the native side emitter and subscribes to the targets data messages (string)
+ * Wraps the native side emitter and subscribes to the targets data messages (string).
+ * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
+ * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
+ * with the second parameter containing the error string (ie onData(null,'some error');
+ * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+ *       This will cause the module to drop the TcpConnection and remove all data event listeners.
+ *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
  * @param param {target: String} : The target url to connect to (with Port)
- * @param onData TcpConnDatahandler callback called when data is received for this connection
+ * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
  * @returns TcpStream
  */
 const createTcpConnection = async (

@@ -142,6 +142,15 @@ try {
 await conn.close();
 }
 ```
+Note:
+ - The current TcpStream implementation emits per line of data received. That is it reads data from the socket until a new line is reached, at which time it will emit the string line received (by calling onData(data,null).
+     - Ergo sum the current implementation is only suited for text data is line delineated (Electrum server, etc..)
+     - Future implementations will support constant streams of buffered base64 data.
+ - If an error is received, or the connection is dropped it onData will be called with the second parameter containing the error string (ie onData(null,'some error');
+     - Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+     - This will cause the module to drop the TcpConnection and remove all data event listeners.
+     - Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
+
 ## API reference
 Please reference [Typescript defs and JSDoc](./src/index.tsx) for details.
 
