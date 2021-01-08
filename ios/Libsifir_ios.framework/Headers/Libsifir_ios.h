@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 typedef struct OwnedTorService OwnedTorService_t;
+typedef struct TcpSocksStream TcpSocksStream_t;
 
 typedef enum {
   Success,
@@ -21,14 +22,21 @@ typedef struct {
   };
 } ResultMessage;
 
-/**
- * Since the FFI simply starts and shutdowns the daemon we use an
- * Opaque pointer here to pass across the FFI
- */
 typedef struct {
   OwnedTorService_t *result;
   ResultMessage message;
 } BoxedResult_OwnedTorService;
+
+typedef struct {
+  TcpSocksStream_t *result;
+  ResultMessage message;
+} BoxedResult_TcpSocksStream;
+
+typedef struct {
+  void *context;
+  void (*on_success)(char*, const void*);
+  void (*on_err)(char*, const void*);
+} Observer;
 
 BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
 
@@ -37,6 +45,30 @@ BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t
  * Get the status of a OwnedTorService
  */
 char *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
+
+/**
+ *# Safety
+ * Start a proxied TcpStream
+ */
+BoxedResult_TcpSocksStream *tcp_stream_start(const char *target, const char *proxy);
+
+/**
+ *# Safety
+ * Send a Message over a tcpStream
+ */
+ResultMessage *tcp_stream_on_data(TcpSocksStream_t *stream, Observer observer);
+
+/**
+ *# Safety
+ * Send a Message over a tcpStream
+ */
+ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream, const char *msg, uint64_t timeout);
+
+/**
+ *# Safety
+ * Destroy and release TcpSocksStream which will drop the connection
+ */
+void tcp_stream_destroy(TcpSocksStream_t *stream);
 
 /**
  *# Safety

@@ -41,7 +41,8 @@ If you think this is awesome, please consider [contributing to Privacy and Opens
 
 ## Highlights
 - Embeds a fully functional Tor Daemon, with its own circuit (non exit) removing the dependency on Orbot and allowing Tor usage on IOS.
-- Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..!
+- Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..
+- Tcp socket support via a event like interface!
 - [WIP] Start a hidden service accessible via an Onion URL directly on your phone (in final test for upcoming 0.0.2 release)
 - Provides guard functions and state management options to autostart/stop the daemon when REST calls are initiated and/or the application is backgrounded/foregrounded
 - TS Typed API for sanity.
@@ -94,7 +95,7 @@ pod install
 - iOS 11.1 > only: Support iOS Version is 11.1 and higher (#6)
 - Bitcode not supported: Set ` Build Settings > Build Options > Enable Bitcode` to `No` for both Debug and Release.
 
-### Usage Example
+### REST Usage Example
 
 ```js
 import Tor from "react-native-tor";
@@ -115,6 +116,41 @@ try{
     // Client throws on Network errors and Response codes > 299
 }
 ```
+### Socket Usage Example
+
+```js
+import Tor from 'react-native-tor';
+const tor = Tor();
+await tor.startIfNotStarted()
+const target = 'kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001';
+const conn = await tor.createTcpConnection({ target }, (data, err) => {
+  if(err){
+    console.error('error sending msg',err);
+    return
+  }
+  console.log('recieved tcp msg', data);
+} );
+
+
+try {
+  await conn.write(`{ "id": 1, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n`);
+  await conn.write(`{ "id": 2, "method": "blockchain.scripthash.get_balance", "params": ["716decbe1660861c3d93906cb1d98ee68b154fd4d23aed9783859c1271b52a9c"] }\n`);
+  // ... moar writes
+} catch (err) {
+  console.error('Error SendingTcpMSg', err);
+}
+await conn.close();
+}
+```
+Note:
+ - The current TcpStream implementation emits per line of data received. That is it reads data from the socket until a new line is reached, at which time it will emit the string line received (by calling `onData(data,null)`
+     - Ergo sum the current implementation is only suited for text data that is line delineated (Electrum server, etc..)
+     - Future implementations will support constant streams of buffered base64 data.
+ - If an error is received, or the connection is dropped `onData` will be called with the second parameter containing the error string (ie `onData(null,'some error')`;
+     - Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+     - This will cause the module to drop the TcpConnection and remove all data event listeners.
+     - Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
+
 ## API reference
 Please reference [Typescript defs and JSDoc](./src/index.tsx) for details.
 
@@ -195,9 +231,49 @@ declare type TorType = {
      * Should not be used unless you know what you are doing.
      */
     request: NativeTor['request'];
+    /**
+     * Factory function for creating a peristant Tcp connection to a target
+     * See createTcpConnectio;
+     */
+    createTcpConnection: typeof createTcpConnection;
 };
 ```
+Tcp Stream API:
+```ts
+interface TcpStream {
+  /**
+   * Called to close and end the Tcp connection
+   */
+  close(): Promise<boolean>;
 
+  /**
+   * Send a message (write on socket)
+   * @param msg
+   */
+  write(msg: string): Promise<boolean>;
+}
+
+/**
+ * /**
+ * Factory function to create a persistent TcpStream connection to a target
+ * Wraps the native side emitter and subscribes to the targets data messages (string).
+ * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
+ * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
+ * with the second parameter containing the error string (ie onData(null,'some error');
+ * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+ *       This will cause the module to drop the TcpConnection and remove all data event listeners.
+ *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
+ * @param param {target: String, writeTimeout: Number} :
+ *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
+ *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
+ * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
+ * @returns TcpStream
+ */
+const createTcpConnection = async (
+  param: { target: string; writeTimeout?: number },
+  onData: TcpConnDatahandler
+): Promise<TcpStream>
+```
 You can also check the provided [Example Application](example/src/App.tsx) for a quick reference.
 
 ---
@@ -287,7 +363,7 @@ Know someone who want to add a bit more privacy to their Application / Product ?
   - PUT calls
   - DELETE
     - Add body support
-  - Websockets
+  - ~Sockets~
   - Streaming ?
 - ~Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)~
 - Investigate the possibility of creating a NetworkExtension on iOS which act as a VPN for the app which regular REST libaries can be used on.

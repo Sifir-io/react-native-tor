@@ -3,7 +3,9 @@ package com.reactnativetor
 import android.os.AsyncTask
 import android.util.Log
 import com.facebook.react.bridge.*
+import com.sifir.tor.DataObserver
 import com.sifir.tor.OwnedTorService
+import com.sifir.tor.TcpSocksStream
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -14,12 +16,49 @@ import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
+/**
+ * Wraps DataObserver interface into event emitter
+ * Sent across FFI and will emit on data based on target-data or target-error topic
+ */
+class DataObserverEmitter(
+  private val target: String,
+  private val reactContext: ReactApplicationContext,
+  private val streams: HashMap<String, TcpSocksStream>
+) : DataObserver {
+  override fun onData(p0: String?) {
+    reactContext
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$target-data", p0)
+  }
+
+  override fun onError(p0: String?) {
+    // Shutdown and remove it from map on EOF
+    // To prevent invalid memory pointer
+    // TODO Change this when we implement streaming streams.
+    if (p0 == "EOF") {
+      try {
+        Log.d("TorBridge", "DataObserver: EOF detected from '$target', deleting stream..")
+        streams.remove(target)?.delete();
+      } catch (e: Exception) {
+        Log.d("TorBridge", "DataObserver:Error deleting stream for '$target': $e")
+      }
+    }
+    reactContext
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$target-error", p0)
+  }
+}
 
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
+  private var _streams: HashMap<String, TcpSocksStream> = HashMap();
+  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
 
   /**
    * Gets a client that accepts all SSL certs
@@ -98,14 +137,15 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       .readTimeout(10, TimeUnit.SECONDS)
       .build()
 
-    try {
-      val param = TaskParam(method, url, jsonBody, headers.toHashMap())
-      TorBridgeAsyncTask(promise, client).executeOnExecutor(
-        AsyncTask.THREAD_POOL_EXECUTOR, param
-      )
-    } catch (e: Exception) {
-      Log.d("TorBridge", "error on sendRequest$e")
-      promise.reject(e)
+    val param = TaskParam(method, url, jsonBody, headers.toHashMap())
+    executorService.execute {
+      try {
+        val task = TorBridgeRequest(promise, client, param);
+        task.run()
+      } catch (e: Exception) {
+        Log.d("TorBridge", "error on sendRequest$e")
+        promise.reject(e)
+      }
     }
   }
 
@@ -119,24 +159,25 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.reject(Throwable("Service already starting"))
     }
     _starting = true;
-    try {
+    executorService.execute {
       val socksPort = findFreePort();
       val path = this.reactApplicationContext.cacheDir.toString();
       val param = StartParam(socksPort, path)
-      TorBridgeStartAsync({
-        service = it
-        proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
-        _starting = false;
-        promise.resolve(socksPort);
-      }, {
-        _starting = false;
-        promise.reject(it);
-      }).executeOnExecutor(
-        AsyncTask.THREAD_POOL_EXECUTOR, param
-      )
-    } catch (e: Exception) {
-      Log.d("TorBridge", "error on sendRequest $e")
-      promise.reject(e)
+      try {
+        TorBridgeStartAsync(param, {
+          service = it
+          proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
+          _starting = false;
+          promise.resolve(socksPort);
+        }, {
+          _starting = false;
+          promise.reject(it);
+        }).run();
+
+      } catch (e: Exception) {
+        Log.d("TorBridge", "error on sendRequest$e")
+        promise.reject(e)
+      }
     }
   }
 
@@ -164,6 +205,61 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.resolve(true);
     } catch (e: Exception) {
       Log.d("TorBridge", "error on stopDaemon$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun startTcpConn(target: String, promise: Promise) {
+    executorService.execute {
+      try {
+        if (service == null) {
+          throw Throwable("Tor service not running, call startDaemon first")
+        }
+        // FIXME check if stream already exists and remove it
+        TcpStreamStart(target, "0.0.0.0:${service?.socksPort}", {
+          it.on_data(DataObserverEmitter(target, this.reactApplicationContext, _streams));
+          _streams.set(target, it);
+          promise.resolve(true);
+        }, {
+          Log.d("TorBridge", "error on startTcpConn$it")
+          promise.reject(it)
+        }).run();
+      } catch (e: Exception) {
+        Log.d("TorBridge", "error on startTcpConn$e")
+        promise.reject(e)
+      }
+    }
+  }
+
+  @ReactMethod
+  fun sendTcpConnMsg(target: String, msg: String, timeoutSec: Double, promise: Promise) {
+    try {
+      if (service == null) {
+        throw Throwable("Tor Service not running, call startDaemon first")
+      }
+      var stream = _streams.get(target);
+      if (stream == null) {
+        throw Throwable("Stream for target is not initialized, call startTcpConn first");
+      }
+      stream.send_data(msg, timeoutSec.toLong());
+      promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on sendTcpConnMsg$e")
+      promise.reject(e)
+    } catch (e: Throwable) {
+      Log.d("TorBridge", "error on sendTcpConnMsg$e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun stopTcpConn(target: String, promise: Promise) {
+    try {
+      _streams.remove(target)?.delete();
+      promise.resolve(true);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on stopTcpConn$e")
       promise.reject(e)
     }
   }

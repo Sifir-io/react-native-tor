@@ -23,11 +23,24 @@ extension DispatchQueue {
 }
 
 
+
+
+class ObserverSwift {
+    public let onSuccess: ((String) -> Void)
+    public let onError: ((String) -> Void)
+    init(onSuccess: @escaping ((String) -> Void), onError: @escaping ((String) -> Void),target:String) {
+        self.onSuccess = onSuccess
+        self.onError = onError
+    }
+}
+
 @objc(Tor)
-class Tor: NSObject {
+class Tor: RCTEventEmitter {
     var service:Optional<OpaquePointer> = nil;
     var proxySocksPort:Optional<UInt16> = nil;
     var starting:Bool = false;
+    var streams:Dictionary<String,OpaquePointer> = [:];
+    var hasLnser = false;
     
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
@@ -211,6 +224,121 @@ class Tor: NSObject {
             service = nil
             proxySocksPort = nil
         }
+        resolve(true);
+    }
+    
+    override func startObserving(){
+        self.hasLnser = true;
+    }
+    override func stopObserving(){
+        self.hasLnser = false;
+    }
+    
+    // FIXME here it needs to support, so i guess we can use
+    override func supportedEvents() -> [String]! {
+        ["torTcpStreamData","torTcpStreamError"]
+    }
+    
+    @objc(startTcpConn:resolver:rejecter:)
+    func startTcpConn(target:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let socksProxy = self.proxySocksPort else {
+            reject("TOR.TCPCONN.startTcpConn","SocksProxy not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        
+        guard self.streams[target] == nil else {
+            reject("TOR.TCPCONN.starStrean","Stream for target \(target) already exists! Call stopConn",NSError.init(domain: "TOR", code: 01));
+            return;
+        }
+        let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)").pointee;
+        switch(call_result.message.tag){
+        case Success:
+            let stream = call_result.result;
+            self.streams[target] = stream;
+            // Create swift observer wrapper to store context
+            let observerWrapper = ObserverSwift(onSuccess:{ (data) in
+                self.sendEvent(withName: "torTcpStreamData", body: data)
+            }, onError:{ (data) in
+                // On Eof destrory stream and remove from map
+                // TODO update this when streaming streams
+                if(data == "EOF"){
+                    tcp_stream_destroy(stream);
+                    self.streams[target] = nil;
+                }
+                self.sendEvent(withName: "torTcpStreamError", body: data)
+            },target:target);
+            // Prepare pointer to context and observer callbacks as Retained
+            let owner = UnsafeMutableRawPointer(Unmanaged.passRetained(observerWrapper).toOpaque());
+            
+            let onSuccess:@convention(c) (UnsafeMutablePointer<Int8>?, UnsafeRawPointer?) -> Void = { (data, context) in
+                // take unretained so we don't clear it
+                let obv = Unmanaged<ObserverSwift>.fromOpaque(context!).takeUnretainedValue();
+                obv.onSuccess(String(cString: data!));
+                destroy_cstr(data);
+                
+            }
+            let onError:@convention(c) (UnsafeMutablePointer<Int8>?, UnsafeRawPointer?) -> Void = { (data, context) in
+                let obv = Unmanaged<ObserverSwift>.fromOpaque(context!).takeUnretainedValue();
+                obv.onError(String(cString: data!));
+                destroy_cstr(data);
+            }
+            let obv = Observer(context: owner, on_success: onSuccess, on_err:onError);
+            tcp_stream_on_data(stream,obv);
+            resolve(true);
+            return;
+        case Error:
+            // Convert RustByteSlice to String
+            if let error_body = call_result.message.error._0 {
+                let error_string = String.init(cString: error_body);
+                reject("TOR.TCPCONN.startTcpConn",error_string,NSError.init(domain: "TOR", code: 0))
+            } else {
+                reject("TOR.TCPCONN.startTcpConn","Unknown tcpStream startup error",NSError.init(domain: "TOR", code: 99));
+            }
+            return;
+        default:
+            reject("TOR.startTcpConn","unknown startup result",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        
+    }
+    
+    @objc(sendTcpConnMsg:msg:timeoutSec:resolver:rejecter:)
+    func sendTcpConnMsg(target:String,msg:String,timeoutSec:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let _ = self.service else {
+            reject("TOR.TCPCONN.sendTcpConnMsg","Service not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        guard let stream = self.streams[target] else{
+            reject("TOR.TCPCONN.sendTcpConnMsg","Stream not detected",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        let result = tcp_stream_send_msg(stream, msg,timeoutSec.uint64Value).pointee;
+        switch(result.tag){
+        case Success:
+            resolve(true);
+            return;
+        case Error:
+            if let error_body = result.error._0 {
+                let error_string = String.init(cString: error_body);
+                reject("TOR.TCPCONN.sendTcpConnMsg",error_string,NSError.init(domain: "TOR", code: 0))
+            } else {
+                reject("TOR.TCPCONN.sendTcpConnMsg","Unknown tcpStream startup error",NSError.init(domain: "TOR", code: 99));
+            }
+            return;
+        default:
+            reject("TOR.TCPCONN.sendTcpConnMsg","unknown tcp send message result",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+    }
+    
+    @objc(stopTcpConn:resolver:rejecter:)
+    func stopTcpConn(target:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let stream = self.streams[target] else{
+            reject("TOR.TCPCONN.stopTcpConn","Stream not detected",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        self.streams[target] = nil;
+        tcp_stream_destroy(stream);
         resolve(true);
     }
 }

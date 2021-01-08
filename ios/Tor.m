@@ -1,6 +1,7 @@
 #import "React/RCTBridgeModule.h"
+#import "React/RCTEventEmitter.h"
 
-@interface RCT_EXTERN_REMAP_MODULE(TorBridge, Tor, NSObject)
+@interface RCT_EXTERN_REMAP_MODULE(TorBridge, Tor, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(
                   startDaemon:(RCTPromiseResolveBlock)resolve
@@ -28,6 +29,26 @@ RCT_EXTERN_METHOD(
         jsonBody:(NSString*)jsonBody
         headers:(NSDictionary*)headers
         trustInvalidCert:(BOOL*)trustInvalidCert
+        resolver:(RCTPromiseResolveBlock)resolve
+        rejecter: (RCTPromiseRejectBlock)reject
+)
+
+RCT_EXTERN_METHOD(
+        startTcpConn:(NSString*)target
+        resolver:(RCTPromiseResolveBlock)resolve
+        rejecter: (RCTPromiseRejectBlock)reject
+)
+
+RCT_EXTERN_METHOD(
+        sendTcpConnMsg:(NSString*)target
+        msg:(NSString*)msg
+        timeoutSec:(nonnull NSNumber*)timeoutSec
+        resolver:(RCTPromiseResolveBlock)resolve
+        rejecter: (RCTPromiseRejectBlock)reject
+)
+
+RCT_EXTERN_METHOD(
+        stopTcpConn:(NSString*)target
         resolver:(RCTPromiseResolveBlock)resolve
         rejecter: (RCTPromiseRejectBlock)reject
 )

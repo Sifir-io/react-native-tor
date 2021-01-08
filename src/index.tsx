@@ -1,8 +1,11 @@
 import {
   NativeModules,
+  DeviceEventEmitter,
+  NativeEventEmitter,
   AppState,
   AppStateStatus,
   Platform,
+  EmitterSubscription,
 } from 'react-native';
 
 type SocksPortNumber = number;
@@ -72,7 +75,107 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
+  startTcpConn(target: string): Promise<boolean>;
+  sendTcpConnMsg(
+    target: string,
+    msg: string,
+    timeoutSeconds: number
+  ): Promise<boolean>;
+  stopTcpConn(target: string): Promise<boolean>;
 }
+
+/**
+ * Tcpstream data handler.
+ * If err is populated then there was an error
+ */
+type TcpConnDatahandler = (data?: string, err?: string) => void;
+
+/**
+ * Interface returned by createTcpConnection factory
+ */
+interface TcpStream {
+  /**
+   * Called to close and end the Tcp connection
+   */
+  close(): Promise<boolean>;
+  /**
+   * Send a message (write on socket)
+   * @param msg
+   */
+  write(msg: string): Promise<boolean>;
+}
+
+/**
+ * /**
+ * Factory function to create a persistent TcpStream connection to a target
+ * Wraps the native side emitter and subscribes to the targets data messages (string).
+ * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
+ * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
+ * with the second parameter containing the error string (ie onData(null,'some error');
+ * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+ *       This will cause the module to drop the TcpConnection and remove all data event listeners.
+ *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
+ * @param param {target: String, writeTimeout: Number} :
+ *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
+ *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
+ * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
+ * @returns TcpStream
+ */
+const createTcpConnection = async (
+  param: { target: string; writeTimeout?: number },
+  onData: TcpConnDatahandler
+): Promise<TcpStream> => {
+  const { target } = param;
+  await NativeModules.TorBridge.startTcpConn(target);
+  let lsnr_handle: EmitterSubscription[] = [];
+  /**
+   * Handles errors from Tcp Connection
+   * Mainly check for EOF (connection closed/end of stream) and removes lnsers
+   */
+  const onError = async (event: string) => {
+    if (event.toLowerCase() === 'eof') {
+      console.warn(
+        `Got to end of stream on TcpStream to ${target}. Removing listners`
+      );
+      await close();
+    }
+  };
+  if (Platform.OS === 'android') {
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${target}-data`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${target}-error`, async (event) => {
+        await onError(event);
+        await onData(undefined, event);
+      })
+    );
+  } else if (Platform.OS === 'ios') {
+    const emitter = new NativeEventEmitter(NativeModules.TorBridge);
+    lsnr_handle.push(
+      emitter.addListener(`torTcpStreamData`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      emitter.addListener(`torTcpStreamError`, async (event) => {
+        await onError(event);
+        await onData(undefined, event);
+      })
+    );
+  }
+  const writeTimeout = param.writeTimeout || 7;
+  const write = (msg: string) =>
+    NativeModules.TorBridge.sendTcpConnMsg(target, msg, writeTimeout);
+  const close = () => {
+    lsnr_handle.map((e) => e.remove());
+    return NativeModules.TorBridge.stopTcpConn(target);
+  };
+  return { close, write };
+};
+
 type TorType = {
   /**
    * Send a GET request routed through the SOCKS proxy on the native side
@@ -137,6 +240,12 @@ type TorType = {
    * Should not be used unless you know what you are doing.
    */
   request: NativeTor['request'];
+
+  /**
+   * Factory function for creating a peristant Tcp connection to a target
+   * See createTcpConnectio;
+   */
+  createTcpConnection: typeof createTcpConnection;
 };
 
 const TorBridge: NativeTor = NativeModules.TorBridge;
@@ -274,5 +383,6 @@ export default ({
     stopIfRunning,
     request: TorBridge.request,
     getDaemonStatus: TorBridge.getDaemonStatus,
+    createTcpConnection,
   } as TorType;
 };

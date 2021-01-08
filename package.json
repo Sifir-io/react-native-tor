@@ -1,6 +1,6 @@
 {
   "name": "react-native-tor",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Tor for React Native",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
@@ -33,6 +33,7 @@
     "react-native",
     "tor",
     "socks5",
+    "streams",
     "proxy",
     "vpn",
     "privacy",
