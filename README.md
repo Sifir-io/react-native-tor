@@ -143,10 +143,10 @@ await conn.close();
 }
 ```
 Note:
- - The current TcpStream implementation emits per line of data received. That is it reads data from the socket until a new line is reached, at which time it will emit the string line received (by calling onData(data,null).
-     - Ergo sum the current implementation is only suited for text data is line delineated (Electrum server, etc..)
+ - The current TcpStream implementation emits per line of data received. That is it reads data from the socket until a new line is reached, at which time it will emit the string line received (by calling `onData(data,null)`
+     - Ergo sum the current implementation is only suited for text data that is line delineated (Electrum server, etc..)
      - Future implementations will support constant streams of buffered base64 data.
- - If an error is received, or the connection is dropped it onData will be called with the second parameter containing the error string (ie onData(null,'some error');
+ - If an error is received, or the connection is dropped `onData` will be called with the second parameter containing the error string (ie `onData(null,'some error')`;
      - Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
      - This will cause the module to drop the TcpConnection and remove all data event listeners.
      - Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
@@ -238,7 +238,42 @@ declare type TorType = {
     createTcpConnection: typeof createTcpConnection;
 };
 ```
+Tcp Stream API:
+```ts
+interface TcpStream {
+  /**
+   * Called to close and end the Tcp connection
+   */
+  close(): Promise<boolean>;
 
+  /**
+   * Send a message (write on socket)
+   * @param msg
+   */
+  write(msg: string): Promise<boolean>;
+}
+
+/**
+ * /**
+ * Factory function to create a persistent TcpStream connection to a target
+ * Wraps the native side emitter and subscribes to the targets data messages (string).
+ * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
+ * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
+ * with the second parameter containing the error string (ie onData(null,'some error');
+ * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
+ *       This will cause the module to drop the TcpConnection and remove all data event listeners.
+ *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
+ * @param param {target: String, writeTimeout: Number} :
+ *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
+ *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
+ * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
+ * @returns TcpStream
+ */
+const createTcpConnection = async (
+  param: { target: string; writeTimeout?: number },
+  onData: TcpConnDatahandler
+): Promise<TcpStream>
+```
 You can also check the provided [Example Application](example/src/App.tsx) for a quick reference.
 
 ---
