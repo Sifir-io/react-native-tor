@@ -281,6 +281,7 @@ You can also check the provided [Example Application](example/src/App.tsx) for a
 
 - [Torproject](https://www.torproject.org) for everything they do.
 - [@afilini](https://github.com/afilini) for his amazing work on [libtor](https://github.com/MagicalBitcoin/libtor) and constant support!
+- [@GodSaysHodl](https://twitter.com/godsayshodl) for his generosity and backing of FOSS Bitcoin projects with financial bounties and encouragement.
 
 ## Contributing to Privacy and Opensource
 

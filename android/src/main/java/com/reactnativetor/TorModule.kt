@@ -1,6 +1,5 @@
 package com.reactnativetor
 
-import android.os.AsyncTask
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.sifir.tor.DataObserver
