@@ -84,12 +84,15 @@ or
 yarn add react-native-tor
 ```
 2. Link libs
-- Android: there's nothing to do.
+- Android: open `android/app/build.gradle` and add
+  ```
+  implementation files("../../node_modules/react-native-tor/android/libs/sifir_android.aar")
+  ```
 - iOS:
-```
-cd ios/
-pod install
-```
+  ```
+  cd ios/
+  pod install
+  ```
 
 *iOS Projects note*:
 - iOS 11.1 > only: Support iOS Version is 11.1 and higher (#6)
