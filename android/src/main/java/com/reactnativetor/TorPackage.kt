@@ -12,20 +12,11 @@ import android.content.pm.PackageManager
 
 class TorPackage : ReactPackage {
 
-  //init {
-  //      val manager = reactContext.getPackageManager();
-  //      val ai = manager.getApplicationInfo(reactContext.getPackageName(), PackageManager.GET_META_DATA);
-  //      val bundle = ai.metaData;
-  //      val libName = bundle.getString("android.app.sifir_android");
-  //      System.loadLibrary(libName);
-  ////  System.loadLibrary("sifir_android");
-  //}
-
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
     val manager = reactContext.getPackageManager();
     val ai = manager.getApplicationInfo(reactContext.getPackageName(), PackageManager.GET_META_DATA);
     val bundle = ai.metaData;
-    val libName = bundle.getString("android.app.sifir_android");
+    val libName = bundle.getString("com.reactnativetor.sifir_android");
     System.loadLibrary(libName);
     return Arrays.asList<NativeModule>(TorModule(reactContext))
   }
