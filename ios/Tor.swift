@@ -220,6 +220,15 @@ class Tor: RCTEventEmitter {
     @objc(stopDaemon:rejecter:)
     func stopDaemon( resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock)->Void {
         if let hasSevice = service {
+            // if we have streams, shut them down
+            for key in streams.keys {
+                if let stream = streams[key] {
+                    // set it here in case eof callback gets called
+                    // while looping
+                    streams[key] = nil;
+                    tcp_stream_destroy(stream);
+                }
+            }
             shutdown_owned_TorService(hasSevice);
             service = nil
             proxySocksPort = nil
@@ -262,6 +271,10 @@ class Tor: RCTEventEmitter {
                 // On Eof destrory stream and remove from map
                 // TODO update this when streaming streams
                 if(data == "EOF"){
+                    guard let stream = self.streams[target] else{
+                        print("Note: EOF but stream already destroyed, returning...")
+                        return;
+                    }
                     tcp_stream_destroy(stream);
                     self.streams[target] = nil;
                 }
