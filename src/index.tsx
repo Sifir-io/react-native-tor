@@ -75,7 +75,7 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
-  startTcpConn(target: string): Promise<boolean>;
+  startTcpConn(target: string, timeoutMs: number): Promise<boolean>;
   sendTcpConnMsg(
     target: string,
     msg: string,
@@ -115,18 +115,20 @@ interface TcpStream {
  * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
  *       This will cause the module to drop the TcpConnection and remove all data event listeners.
  *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
- * @param param {target: String, writeTimeout: Number} :
+ * @param param {target: string, writeTimeout: number, connectionTimeout: number } :
  *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
  *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
+ *        'connectionTimeout' in MilliSeconds to wait before timing out on connecting to the Target (Defaults to 15000 = 15 seconds)
  * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
  * @returns TcpStream
  */
 const createTcpConnection = async (
-  param: { target: string; writeTimeout?: number },
+  param: { target: string; connectionTimeout?: number; writeTimeout?: number },
   onData: TcpConnDatahandler
 ): Promise<TcpStream> => {
   const { target } = param;
-  await NativeModules.TorBridge.startTcpConn(target);
+  const connectionTimeout = param.connectionTimeout || 15000;
+  await NativeModules.TorBridge.startTcpConn(target, connectionTimeout);
   let lsnr_handle: EmitterSubscription[] = [];
   /**
    * Handles errors from Tcp Connection

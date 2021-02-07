@@ -15,6 +15,10 @@ export default function App() {
     'http://3g2upl4pq6kufc4m.onion'
   );
   const [hasStream, setHasStream] = React.useState(false);
+  const [
+    streamConnectionTimeoutMS,
+    setStreamConnectionTimeoutMS,
+  ] = React.useState(15000);
   React.useEffect(() => {
     _init();
   }, []);
@@ -90,9 +94,12 @@ export default function App() {
       let target =
         'kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001';
       console.log('starting');
-      const conn = await client.createTcpConnection({ target }, (data, err) => {
-        console.log('tcp got msg', data, err);
-      });
+      const conn = await client.createTcpConnection(
+        { target, connectionTimeout: streamConnectionTimeoutMS },
+        (data, err) => {
+          console.log('tcp got msg', data, err);
+        }
+      );
       console.log('after');
       tcpStream = conn;
       setHasStream(true);
@@ -133,6 +140,11 @@ export default function App() {
             <Button onPress={getOnion} title="Get onion" />
             <Button onPress={postOnion} title="POST onion" />
             <Button onPress={startTcpStream} title="Start Tcp Stream" />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(x) => setStreamConnectionTimeoutMS(Number(x))}
+              value={String(streamConnectionTimeoutMS)}
+            />
             {hasStream && (
               <View>
                 <Button onPress={sendTcpMsg} title="Send Tcp Msg" />

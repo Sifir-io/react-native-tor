@@ -177,7 +177,7 @@ class Tor: RCTEventEmitter {
                     return;
                 case Error:
                     // Convert RustByteSlice to String
-                    if let error_body = call_result.message.error._0 {
+                    if let error_body = call_result.message.error {
                         let error_string = String.init(cString: error_body);
                         reject("TOR.START",error_string,NSError.init(domain: "TOR", code: 0))
                     } else {
@@ -248,8 +248,8 @@ class Tor: RCTEventEmitter {
         ["torTcpStreamData","torTcpStreamError"]
     }
     
-    @objc(startTcpConn:resolver:rejecter:)
-    func startTcpConn(target:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+    @objc(startTcpConn:timeoutMs:resolver:rejecter:)
+    func startTcpConn(target:String,timeoutMs:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
         guard let socksProxy = self.proxySocksPort else {
             reject("TOR.TCPCONN.startTcpConn","SocksProxy not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
             return;
@@ -259,7 +259,7 @@ class Tor: RCTEventEmitter {
             reject("TOR.TCPCONN.starStrean","Stream for target \(target) already exists! Call stopConn",NSError.init(domain: "TOR", code: 01));
             return;
         }
-        let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)").pointee;
+        let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)",timeoutMs.uint64Value).pointee;
         switch(call_result.message.tag){
         case Success:
             let stream = call_result.result;
@@ -301,7 +301,7 @@ class Tor: RCTEventEmitter {
             return;
         case Error:
             // Convert RustByteSlice to String
-            if let error_body = call_result.message.error._0 {
+            if let error_body = call_result.message.error {
                 let error_string = String.init(cString: error_body);
                 reject("TOR.TCPCONN.startTcpConn",error_string,NSError.init(domain: "TOR", code: 0))
             } else {
@@ -331,7 +331,7 @@ class Tor: RCTEventEmitter {
             resolve(true);
             return;
         case Error:
-            if let error_body = result.error._0 {
+            if let error_body = result.error {
                 let error_string = String.init(cString: error_body);
                 reject("TOR.TCPCONN.sendTcpConnMsg",error_string,NSError.init(domain: "TOR", code: 0))
             } else {

@@ -6,43 +6,41 @@
 typedef struct OwnedTorService OwnedTorService_t;
 typedef struct TcpSocksStream TcpSocksStream_t;
 
-typedef enum {
+typedef enum ResultMessage_Tag {
   Success,
   Error,
 } ResultMessage_Tag;
 
-typedef struct {
-  char *_0;
-} Error_Body;
-
-typedef struct {
+typedef struct ResultMessage {
   ResultMessage_Tag tag;
   union {
-    Error_Body error;
+    struct {
+      char *error;
+    };
   };
 } ResultMessage;
 
-typedef struct {
+typedef struct BoxedResult_OwnedTorService {
   OwnedTorService_t *result;
-  ResultMessage message;
+  struct ResultMessage message;
 } BoxedResult_OwnedTorService;
 
-typedef struct {
+typedef struct BoxedResult_TcpSocksStream {
   TcpSocksStream_t *result;
-  ResultMessage message;
+  struct ResultMessage message;
 } BoxedResult_TcpSocksStream;
 
-typedef struct {
+typedef struct Observer {
   void *context;
   void (*on_success)(char*, const void*);
   void (*on_err)(char*, const void*);
 } Observer;
 
-BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
+struct BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
 
 /**
  *# Safety
- * Get the status of a OwnedTorService
+ * Get the status of a OwnedTorService_t
  */
 char *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
 
@@ -50,23 +48,27 @@ char *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
  *# Safety
  * Start a proxied TcpStream
  */
-BoxedResult_TcpSocksStream *tcp_stream_start(const char *target, const char *proxy);
+struct BoxedResult_TcpSocksStream *tcp_stream_start(const char *target,
+                                                    const char *proxy,
+                                                    uint64_t timeout_ms);
 
 /**
  *# Safety
  * Send a Message over a tcpStream
  */
-ResultMessage *tcp_stream_on_data(TcpSocksStream_t *stream, Observer observer);
+struct ResultMessage *tcp_stream_on_data(TcpSocksStream_t *stream, struct Observer observer);
 
 /**
  *# Safety
  * Send a Message over a tcpStream
  */
-ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream, const char *msg, uint64_t timeout);
+struct ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream,
+                                          const char *msg,
+                                          uint64_t timeout);
 
 /**
  *# Safety
- * Destroy and release TcpSocksStream which will drop the connection
+ * Destroy and release TcpSocksStream_t which will drop the connection
  */
 void tcp_stream_destroy(TcpSocksStream_t *stream);
 
