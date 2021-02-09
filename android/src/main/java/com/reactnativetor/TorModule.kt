@@ -213,7 +213,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     executorService.execute {
       try {
         if (service == null) {
-          throw Throwable("Tor service not running, call startDaemon first")
+          throw Exception("Tor service not running, call startDaemon first")
         }
         // FIXME check if stream already exists and remove it
         TcpStreamStart(target, "0.0.0.0:${service?.socksPort}",timeoutMs.toLong(), {
