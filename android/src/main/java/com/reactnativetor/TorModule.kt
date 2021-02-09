@@ -209,14 +209,14 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   }
 
   @ReactMethod
-  fun startTcpConn(target: String, promise: Promise) {
+  fun startTcpConn(target: String, timeoutMs:Double, promise: Promise) {
     executorService.execute {
       try {
         if (service == null) {
           throw Throwable("Tor service not running, call startDaemon first")
         }
         // FIXME check if stream already exists and remove it
-        TcpStreamStart(target, "0.0.0.0:${service?.socksPort}", {
+        TcpStreamStart(target, "0.0.0.0:${service?.socksPort}",timeoutMs.toLong(), {
           it.on_data(DataObserverEmitter(target, this.reactApplicationContext, _streams));
           _streams.set(target, it);
           promise.resolve(true);
