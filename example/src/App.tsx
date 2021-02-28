@@ -21,11 +21,21 @@ export default function App() {
   ] = React.useState(15000);
   React.useEffect(() => {
     _init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const _init = async () => {
     try {
+      // Init and do a few basic calls to test all is good
+      console.log('App init');
       await client.startIfNotStarted();
+      console.log('Tor started');
+      await getOnion();
+      console.log('Got onion');
+      await startTcpStream();
+      console.log('started tcp stream');
+      await sendTcpMsg();
+      console.log('send tcpmsg');
     } catch (err) {
       console.error('Error starting daemon', err);
       await client.stopIfRunning();

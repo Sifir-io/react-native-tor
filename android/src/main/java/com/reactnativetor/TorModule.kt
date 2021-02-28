@@ -150,7 +150,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
 
   @ReactMethod
-  fun startDaemon(promise: Promise) {
+  fun startDaemon(timeoutMs:Double,promise: Promise) {
     if (service != null) {
       promise.reject(Throwable("Service already running, call stopDaemon first"))
     }
@@ -161,7 +161,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     executorService.execute {
       val socksPort = findFreePort();
       val path = this.reactApplicationContext.cacheDir.toString();
-      val param = StartParam(socksPort, path)
+      val param = StartParam(socksPort, path,timeoutMs.toLong())
       try {
         TorBridgeStartAsync(param, {
           service = it
@@ -174,7 +174,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         }).run();
 
       } catch (e: Exception) {
-        Log.d("TorBridge", "error on sendRequest$e")
+        Log.d("TorBridge", "error on startDaemon$e")
         promise.reject(e)
       }
     }
