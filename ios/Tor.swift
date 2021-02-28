@@ -148,8 +148,8 @@ class Tor: RCTEventEmitter {
     }
     
     
-    @objc(startDaemon:rejecter:)
-    func startDaemon( resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
+    @objc(startDaemon:resolver:rejecter:)
+    func startDaemon(timeoutMs:NSNumber, resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
         if service != nil || starting {
             reject("TOR.START","Tor Service Already Running. Call `stopDaemon` first.",NSError.init(domain: "TOR.START", code: 01));
             return;
@@ -168,7 +168,9 @@ class Tor: RCTEventEmitter {
                 defer {
                     self.starting = false;
                 }
-                let call_result = get_owned_TorService(path, socksPort).pointee;
+                // FIXME here make the timeout a param
+                // better way to automatically have the JS promise handle a fail ?
+                let call_result = get_owned_TorService(path, socksPort,timeoutMs.uint64Value).pointee;
                 switch(call_result.message.tag){
                 case Success:
                     self.service = Optional.some(call_result.result);

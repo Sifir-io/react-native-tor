@@ -24,7 +24,12 @@ export default function App() {
   }, []);
 
   const _init = async () => {
-    await client.startIfNotStarted();
+    try {
+      await client.startIfNotStarted();
+    } catch (err) {
+      console.error('Error starting daemon', err);
+      await client.stopIfRunning();
+    }
   };
   const startTor = async () => {
     try {
@@ -32,6 +37,7 @@ export default function App() {
       console.log('Tor started socks port', port);
       setSocksPort(port);
     } catch (err) {
+      await client.stopIfRunning();
       console.error(err);
     }
   };

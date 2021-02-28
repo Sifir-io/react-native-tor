@@ -65,7 +65,7 @@ interface ProcessedRequestResponse extends RequestResponse {}
  * Used internally, public calls should be made on the returned TorType
  */
 interface NativeTor {
-  startDaemon(): Promise<SocksPortNumber>;
+  startDaemon(timeoutMs: number): Promise<SocksPortNumber>;
   stopDaemon(): Promise<void>;
   getDaemonStatus(): Promise<string>;
   request<T extends RequestMethod>(
@@ -266,6 +266,7 @@ const TorBridge: NativeTor = NativeModules.TorBridge;
 export default ({
   stopDaemonOnBackground = true,
   startDaemonOnActive = false,
+  bootstrapTimeoutMs = 25000,
   os = Platform.OS,
 } = {}): TorType => {
   let bootstrapPromise: Promise<number> | undefined;
@@ -299,7 +300,9 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise = NativeModules.TorBridge.startDaemon();
+      bootstrapPromise = NativeModules.TorBridge.startDaemon(
+        bootstrapTimeoutMs
+      );
     }
     return bootstrapPromise;
   };

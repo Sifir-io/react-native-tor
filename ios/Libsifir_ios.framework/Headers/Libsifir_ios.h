@@ -36,11 +36,13 @@ typedef struct Observer {
   void (*on_err)(char*, const void*);
 } Observer;
 
-struct BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir, uint16_t socks_port);
+struct BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir,
+                                                         uint16_t socks_port,
+                                                         uint64_t bootstrap_timeout_ms);
 
 /**
  *# Safety
- * Get the status of a OwnedTorService_t
+ * Get the status of a OwnedTorService
  */
 char *get_status_of_owned_TorService(OwnedTorService_t *owned_client);
 
@@ -68,7 +70,7 @@ struct ResultMessage *tcp_stream_send_msg(TcpSocksStream_t *stream,
 
 /**
  *# Safety
- * Destroy and release TcpSocksStream_t which will drop the connection
+ * Destroy and release TcpSocksStream which will drop the connection
  */
 void tcp_stream_destroy(TcpSocksStream_t *stream);
 
