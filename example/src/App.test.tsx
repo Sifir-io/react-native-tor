@@ -38,7 +38,7 @@ export default function App() {
       console.log('send tcpmsg');
       await closeTcpStream();
       console.log('tcp closed');
-      await startTcpStream(5);
+      await startTcpStream(15000);
       await sendTcpMsg();
       console.log('sent 2');
       await stopTor();
