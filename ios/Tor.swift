@@ -279,6 +279,21 @@ class Tor: RCTEventEmitter {
                     }
                     tcp_stream_destroy(stream);
                     self.streams[target] = nil;
+                } else if (data.contains("NotConnected")){
+                    guard let stream = self.streams[target] else{
+                        print("Note: EOF but stream already destroyed, returning...")
+                        return;
+                    }
+                    // Stream pointer could be already delocated from rust side here
+                    // so don't try to destory it just remove it from map of references.
+                    // Worst case we create a new one and the memory leak gets recycled
+                    // when app restarts
+                    // TODO way to better coordinate this.
+                    // tcp_stream_destroy(stream);
+                    self.streams[target] = nil;
+                } else {
+                    print("Got observerWrapper event but not EOF",data )
+
                 }
                 self.sendEvent(withName: "torTcpStreamError", body: data)
             },target:target);

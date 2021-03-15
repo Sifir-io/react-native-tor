@@ -139,7 +139,11 @@ const createTcpConnection = async (
       console.warn(
         `Got to end of stream on TcpStream to ${target}. Removing listners`
       );
-      await close();
+      try {
+        await close();
+      } catch (err) {
+        console.warn('RnTor: onError close execution error', err);
+      }
     }
   };
   if (Platform.OS === 'android') {
