@@ -7,6 +7,7 @@ import {
   Platform,
   EmitterSubscription,
 } from 'react-native';
+import { queue } from 'async';
 
 type SocksPortNumber = number;
 export type RequestHeaders = { [header: string]: string } | {};
@@ -264,6 +265,10 @@ const TorBridge: NativeTor = NativeModules.TorBridge;
  * @param startDaemonOnActive
  * @default false
  * When set to true will automatically start/restart the Tor daemon when the application is bought back to the foreground (from the background)
+ * @param numberConcurrentRequests If sent to > 0 this will instruct the module to queue requests on the JS side before sending them over the Native bridge. Requests will get exectued with numberConcurrentRequests concurent requests. Note setting this to 0 disables JS sided queueing and sends requests directly to Native bridge as they are recieved. This is useful if you're running the stock/hermes RN JS engine that has a tendency off breaking under heavy multithreaded work. If you using V8 you can set this to 0 to disable JS sided queueing and thus get maximum performance.
+ * @default 4
+ * @param inflightRequestTimeoutMs The maximum number of MS to wait before timeing out a request that has been queued on the JS side has *begun* executing. Only used when numberConcurrentRequests > 0
+ * @default 7000
  * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
  * @default The os the module is running on.
  */
@@ -271,11 +276,38 @@ export default ({
   stopDaemonOnBackground = true,
   startDaemonOnActive = false,
   bootstrapTimeoutMs = 25000,
+  numberConcurrentRequests = 4,
+  inflightRequestTimeoutMs = 7000,
   os = Platform.OS,
 } = {}): TorType => {
   let bootstrapPromise: Promise<number> | undefined;
   let lastAppState: AppStateStatus = 'active';
   let _appStateLsnerSet: boolean = false;
+
+  const requestQueue = queue<{
+    res: (x: any) => void;
+    rej: (x: any) => void;
+    request: () => Promise<RequestResponse>;
+  }>(async (task, cb) => {
+    const { res, rej, request } = task;
+    try {
+      const timeout = setTimeout(() => {
+        throw 'Request timedout after ' + inflightRequestTimeoutMs;
+      }, inflightRequestTimeoutMs);
+      const result = await request();
+      clearTimeout(timeout);
+      res(result);
+    } catch (err) {
+      rej(err);
+    } finally {
+      cb();
+    }
+  }, numberConcurrentRequests);
+
+  requestQueue.drain(() =>
+    console.log('notice: Request queue has been processed')
+  );
+
   const _handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (
       startDaemonOnActive &&
@@ -341,16 +373,26 @@ export default ({
     AppState.addEventListener('change', _handleAppStateChange);
   }
 
+  /**
+   * Wraps requests to be queued or executed directly.
+   * numberConcurrentRequests > 0 will cause tasks to be wrapped in a JS side queue
+   */
+  const requestQueueWrapper = (
+    request: () => Promise<RequestResponse>
+  ): Promise<RequestResponse> => {
+    return new Promise((res, rej) =>
+      numberConcurrentRequests > 0
+        ? requestQueue.push({ request, res, rej })
+        : request().then(res).catch(rej)
+    );
+  };
+
   return {
     async get(url: string, headers?: Headers, trustSSL: boolean = true) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.GET,
-          '',
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(url, RequestMethod.GET, '', headers || {}, trustSSL)
         )
       );
     },
@@ -362,12 +404,14 @@ export default ({
     ) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.POST,
-          body,
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(
+            url,
+            RequestMethod.POST,
+            body,
+            headers || {},
+            trustSSL
+          )
         )
       );
     },
@@ -379,12 +423,14 @@ export default ({
     ) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.DELETE,
-          body || '',
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(
+            url,
+            RequestMethod.DELETE,
+            body || '',
+            headers || {},
+            trustSSL
+          )
         )
       );
     },

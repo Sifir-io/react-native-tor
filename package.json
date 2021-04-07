@@ -144,5 +144,9 @@
       "module",
       "typescript"
     ]
+  },
+  "dependencies": {
+    "@types/async": "^3.2.6",
+    "async": "^3.2.0"
   }
 }
