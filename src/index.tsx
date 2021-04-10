@@ -76,7 +76,7 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
-  startTcpConn(target: string, timeoutMs: number): Promise<boolean>;
+  startTcpConn(target: string, timeoutMs: number): Promise<string>;
   sendTcpConnMsg(
     target: string,
     msg: string,
@@ -136,7 +136,10 @@ const _createTcpConnection = async (
   const { target } = param;
   const connectionTimeout = param.connectionTimeout || 15000;
   const writeQueueConcurrency = param.numberConcurrentWrites || 4;
-  await NativeModules.TorBridge.startTcpConn(target, connectionTimeout);
+  const connId = await NativeModules.TorBridge.startTcpConn(
+    target,
+    connectionTimeout
+  );
   let lsnr_handle: EmitterSubscription[] = [];
   /**
    * Handles errors from Tcp Connection
@@ -145,7 +148,7 @@ const _createTcpConnection = async (
   const onError = async (event: string) => {
     if (event.toLowerCase() === 'eof') {
       console.warn(
-        `Got to end of stream on TcpStream to ${target}. Removing listners`
+        `Got to end of stream on TcpStream to ${target} having connection Id ${connId}. Removing listners`
       );
       try {
         await close();
@@ -156,17 +159,18 @@ const _createTcpConnection = async (
   };
   if (Platform.OS === 'android') {
     lsnr_handle.push(
-      DeviceEventEmitter.addListener(`${target}-data`, (event) => {
+      DeviceEventEmitter.addListener(`${connId}-data`, (event) => {
         onData(event);
       })
     );
     lsnr_handle.push(
-      DeviceEventEmitter.addListener(`${target}-error`, async (event) => {
+      DeviceEventEmitter.addListener(`${connId}-error`, async (event) => {
         await onError(event);
         await onData(undefined, event);
       })
     );
   } else if (Platform.OS === 'ios') {
+    // FIXME IOS connid and events ?
     const emitter = new NativeEventEmitter(NativeModules.TorBridge);
     lsnr_handle.push(
       emitter.addListener(`torTcpStreamData`, (event) => {
@@ -182,10 +186,10 @@ const _createTcpConnection = async (
   }
   const writeTimeout = param.writeTimeout || 7;
   const write = (msg: string) =>
-    NativeModules.TorBridge.sendTcpConnMsg(target, msg, writeTimeout);
+    NativeModules.TorBridge.sendTcpConnMsg(connId, msg, writeTimeout);
   const close = () => {
     lsnr_handle.map((e) => e.remove());
-    return NativeModules.TorBridge.stopTcpConn(target);
+    return NativeModules.TorBridge.stopTcpConn(connId);
   };
 
   /**
