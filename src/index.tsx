@@ -108,7 +108,7 @@ interface TcpStream {
 
 /**
  * /**
- * Factory function to create a persistent TcpStream connection to a target
+ * Factory function to create a persistent TcpStream connection to a target.
  * Wraps the native side emitter and subscribes to the targets data messages (string).
  * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
  * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
@@ -120,15 +120,22 @@ interface TcpStream {
  *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
  *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
  *        'connectionTimeout' in MilliSeconds to wait before timing out on connecting to the Target (Defaults to 15000 = 15 seconds)
+ *        'numberConcurrentWrites' Number of maximum messages to write concurrently on the Tcp socket. Defaults to 4. If more than numberConcurrentWrites messages are recieved they are placed on queue to be dispatched as soon as a previous message write resolves.
  * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
  * @returns TcpStream
  */
-const createTcpConnection = async (
-  param: { target: string; connectionTimeout?: number; writeTimeout?: number },
+const _createTcpConnection = async (
+  param: {
+    target: string;
+    connectionTimeout?: number;
+    writeTimeout?: number;
+    numberConcurrentWrites?: number;
+  },
   onData: TcpConnDatahandler
 ): Promise<TcpStream> => {
   const { target } = param;
   const connectionTimeout = param.connectionTimeout || 15000;
+  const writeQueueConcurrency = param.numberConcurrentWrites || 4;
   await NativeModules.TorBridge.startTcpConn(target, connectionTimeout);
   let lsnr_handle: EmitterSubscription[] = [];
   /**
@@ -180,8 +187,70 @@ const createTcpConnection = async (
     lsnr_handle.map((e) => e.remove());
     return NativeModules.TorBridge.stopTcpConn(target);
   };
-  return { close, write };
+
+  /**
+   * Wrap write with a JS queue for non V8 engines
+   */
+  const writeMessageQueue = queue<{
+    msg: string;
+    res: (x: any) => void;
+    rej: (x: any) => void;
+  }>(async (payload, cb) => {
+    const { msg, res, rej } = payload;
+    try {
+      const result = await write(msg);
+      res(result);
+    } catch (err) {
+      rej(err);
+    } finally {
+      cb();
+    }
+  }, writeQueueConcurrency);
+
+  writeMessageQueue.drain(() =>
+    console.log(
+      'notice: All tcpConnection write messages requests have been disptached..'
+    )
+  );
+  return {
+    close,
+    write: (msg: string) =>
+      new Promise((res, rej) => writeMessageQueue.push({ msg, res, rej })),
+  };
 };
+
+const createTcpConnQueue = queue<{
+  param: Parameters<typeof _createTcpConnection>;
+  res: (x: any) => void;
+  rej: (x: any) => void;
+}>(async (payload, cb) => {
+  const { param, res, rej } = payload;
+  try {
+    const result = await _createTcpConnection(...param);
+    res(result);
+  } catch (err) {
+    console.error('error creating tcp conn', err);
+    rej(err);
+  } finally {
+    cb();
+  }
+}, 1);
+
+createTcpConnQueue.drain(() =>
+  console.log(
+    'notice: All requested TcpConnections requests have been dispatched..'
+  )
+);
+
+/**
+ * We expose _createTcpConnection publicly as a wrapped queue to avoid JS->Native bridge hang issue for non V8 engines
+ */
+const createTcpConnection = (
+  ...param: Parameters<typeof _createTcpConnection>
+): ReturnType<typeof _createTcpConnection> =>
+  new Promise((res, rej) => {
+    createTcpConnQueue.push({ param, res, rej });
+  });
 
 type TorType = {
   /**
@@ -267,8 +336,6 @@ const TorBridge: NativeTor = NativeModules.TorBridge;
  * When set to true will automatically start/restart the Tor daemon when the application is bought back to the foreground (from the background)
  * @param numberConcurrentRequests If sent to > 0 this will instruct the module to queue requests on the JS side before sending them over the Native bridge. Requests will get exectued with numberConcurrentRequests concurent requests. Note setting this to 0 disables JS sided queueing and sends requests directly to Native bridge as they are recieved. This is useful if you're running the stock/hermes RN JS engine that has a tendency off breaking under heavy multithreaded work. If you using V8 you can set this to 0 to disable JS sided queueing and thus get maximum performance.
  * @default 4
- * @param inflightRequestTimeoutMs The maximum number of MS to wait before timeing out a request that has been queued on the JS side has *begun* executing. Only used when numberConcurrentRequests > 0
- * @default 7000
  * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
  * @default The os the module is running on.
  */
@@ -277,36 +344,34 @@ export default ({
   startDaemonOnActive = false,
   bootstrapTimeoutMs = 25000,
   numberConcurrentRequests = 4,
-  inflightRequestTimeoutMs = 7000,
   os = Platform.OS,
 } = {}): TorType => {
   let bootstrapPromise: Promise<number> | undefined;
   let lastAppState: AppStateStatus = 'active';
   let _appStateLsnerSet: boolean = false;
 
-  const requestQueue = queue<{
-    res: (x: any) => void;
-    rej: (x: any) => void;
-    request: () => Promise<RequestResponse>;
-  }>(async (task, cb) => {
-    const { res, rej, request } = task;
-    try {
-      const timeout = setTimeout(() => {
-        throw 'Request timedout after ' + inflightRequestTimeoutMs;
-      }, inflightRequestTimeoutMs);
-      const result = await request();
-      clearTimeout(timeout);
-      res(result);
-    } catch (err) {
-      rej(err);
-    } finally {
-      cb();
-    }
-  }, numberConcurrentRequests);
+  let requestQueue: ReturnType<typeof queue> | undefined;
+  if (numberConcurrentRequests > 0) {
+    requestQueue = queue<{
+      res: (x: any) => void;
+      rej: (x: any) => void;
+      request: () => Promise<RequestResponse>;
+    }>(async (task, cb) => {
+      const { res, rej, request } = task;
+      try {
+        const result = await request();
+        res(result);
+      } catch (err) {
+        rej(err);
+      } finally {
+        cb();
+      }
+    }, numberConcurrentRequests);
 
-  requestQueue.drain(() =>
-    console.log('notice: Request queue has been processed')
-  );
+    requestQueue.drain(() =>
+      console.log('notice: Request queue has been processed')
+    );
+  }
 
   const _handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (
@@ -382,7 +447,7 @@ export default ({
   ): Promise<RequestResponse> => {
     return new Promise((res, rej) =>
       numberConcurrentRequests > 0
-        ? requestQueue.push({ request, res, rej })
+        ? requestQueue?.push({ request, res, rej })
         : request().then(res).catch(rej)
     );
   };
