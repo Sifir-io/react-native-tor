@@ -9,16 +9,14 @@ import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
-import java.util.concurrent.TimeUnit
 import java.net.Proxy;
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.UUID;
+import java.util.concurrent.*
 
 
 /**
@@ -59,7 +57,9 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
   private var _streams: HashMap<String, TcpSocksStream> = HashMap();
-  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+//  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+  private val executorService : ThreadPoolExecutor = ThreadPoolExecutor(4,4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>());
+
 
   /**
    * Gets a client that accepts all SSL certs
