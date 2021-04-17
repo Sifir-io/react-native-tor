@@ -170,17 +170,23 @@ const _createTcpConnection = async (
       })
     );
   } else if (Platform.OS === 'ios') {
-    // FIXME IOS connid and events ?
     const emitter = new NativeEventEmitter(NativeModules.TorBridge);
     lsnr_handle.push(
       emitter.addListener(`torTcpStreamData`, (event) => {
-        onData(event);
+        const [uuid, data] = event.split('||', 2);
+        if (connId === uuid) {
+          console.warn('got', connId, data);
+          onData(data);
+        }
       })
     );
     lsnr_handle.push(
       emitter.addListener(`torTcpStreamError`, async (event) => {
-        await onError(event);
-        await onData(undefined, event);
+        const [uuid, data] = event.split('||', 2);
+        if (connId === uuid) {
+          await onError(data);
+          await onData(undefined, data);
+        }
       })
     );
   }

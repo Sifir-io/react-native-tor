@@ -257,30 +257,28 @@ class Tor: RCTEventEmitter {
             return;
         }
         
-        guard self.streams[target] == nil else {
-            reject("TOR.TCPCONN.starStrean","Stream for target \(target) already exists! Call stopConn",NSError.init(domain: "TOR", code: 01));
-            return;
-        }
+        let uuid = UUID().uuidString;
+        
         let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)",timeoutMs.uint64Value).pointee;
         switch(call_result.message.tag){
         case Success:
             let stream = call_result.result;
-            self.streams[target] = stream;
+            self.streams[uuid] = stream;
             // Create swift observer wrapper to store context
             let observerWrapper = ObserverSwift(onSuccess:{ (data) in
-                self.sendEvent(withName: "torTcpStreamData", body: data)
+                self.sendEvent(withName: "torTcpStreamData", body: "\(uuid)||\(data)")
             }, onError:{ (data) in
                 // On Eof destrory stream and remove from map
                 // TODO update this when streaming streams
                 if(data == "EOF"){
-                    guard let stream = self.streams[target] else{
+                    guard let stream = self.streams[uuid] else{
                         print("Note: EOF but stream already destroyed, returning...")
                         return;
                     }
                     tcp_stream_destroy(stream);
-                    self.streams[target] = nil;
+                    self.streams[uuid] = nil;
                 } else if (data.contains("NotConnected")){
-                    guard let stream = self.streams[target] else{
+                    guard self.streams[uuid] != nil else{
                         print("Note: EOF but stream already destroyed, returning...")
                         return;
                     }
@@ -290,12 +288,12 @@ class Tor: RCTEventEmitter {
                     // when app restarts
                     // TODO way to better coordinate this.
                     // tcp_stream_destroy(stream);
-                    self.streams[target] = nil;
+                    self.streams[uuid] = nil;
                 } else {
                     print("Got observerWrapper event but not EOF",data )
-
+                    
                 }
-                self.sendEvent(withName: "torTcpStreamError", body: data)
+                self.sendEvent(withName: "torTcpStreamError", body: "\(uuid)||\(data)")
             },target:target);
             // Prepare pointer to context and observer callbacks as Retained
             let owner = UnsafeMutableRawPointer(Unmanaged.passRetained(observerWrapper).toOpaque());
@@ -314,7 +312,7 @@ class Tor: RCTEventEmitter {
             }
             let obv = Observer(context: owner, on_success: onSuccess, on_err:onError);
             tcp_stream_on_data(stream,obv);
-            resolve(true);
+            resolve(uuid);
             return;
         case Error:
             // Convert RustByteSlice to String
