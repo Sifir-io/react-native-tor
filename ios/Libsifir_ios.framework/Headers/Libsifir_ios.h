@@ -84,5 +84,3 @@ void destroy_cstr(char *c_str);
  * Destroy and release ownedTorBox which will shut down owned connection and shutdown daemon
  */
 void shutdown_owned_TorService(OwnedTorService *owned_client);
-
-struct BoxedResult_WalletDescriptors *generate_descriptor(const char *network);
