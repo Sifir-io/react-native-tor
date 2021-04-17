@@ -175,7 +175,6 @@ const _createTcpConnection = async (
       emitter.addListener(`torTcpStreamData`, (event) => {
         const [uuid, data] = event.split('||', 2);
         if (connId === uuid) {
-          console.warn('got', connId, data);
           onData(data);
         }
       })
