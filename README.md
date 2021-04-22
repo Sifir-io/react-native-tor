@@ -142,6 +142,8 @@ try {
 } catch (err) {
   console.error('Error SendingTcpMSg', err);
 }
+
+// Eventually when you're done and *after* recieving your data close the connection
 await conn.close();
 }
 ```
