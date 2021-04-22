@@ -4,7 +4,8 @@
 @interface RCT_EXTERN_REMAP_MODULE(TorBridge, Tor, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(
-                  startDaemon:(RCTPromiseResolveBlock)resolve
+                  startDaemon:(nonnull NSNumber*)timeoutMs
+                  resolver:(RCTPromiseResolveBlock)resolver
                   rejecter: (RCTPromiseRejectBlock)reject
                   )
 RCT_EXTERN_METHOD(
@@ -35,6 +36,7 @@ RCT_EXTERN_METHOD(
 
 RCT_EXTERN_METHOD(
         startTcpConn:(NSString*)target
+        timeoutMs:(nonnull NSNumber*)timeoutMs
         resolver:(RCTPromiseResolveBlock)resolve
         rejecter: (RCTPromiseRejectBlock)reject
 )

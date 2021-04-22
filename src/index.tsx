@@ -7,6 +7,7 @@ import {
   Platform,
   EmitterSubscription,
 } from 'react-native';
+import { queue } from 'async';
 
 type SocksPortNumber = number;
 export type RequestHeaders = { [header: string]: string } | {};
@@ -65,7 +66,7 @@ interface ProcessedRequestResponse extends RequestResponse {}
  * Used internally, public calls should be made on the returned TorType
  */
 interface NativeTor {
-  startDaemon(): Promise<SocksPortNumber>;
+  startDaemon(timeoutMs: number): Promise<SocksPortNumber>;
   stopDaemon(): Promise<void>;
   getDaemonStatus(): Promise<string>;
   request<T extends RequestMethod>(
@@ -75,7 +76,7 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
-  startTcpConn(target: string): Promise<boolean>;
+  startTcpConn(target: string, timeoutMs: number): Promise<string>;
   sendTcpConnMsg(
     target: string,
     msg: string,
@@ -107,7 +108,7 @@ interface TcpStream {
 
 /**
  * /**
- * Factory function to create a persistent TcpStream connection to a target
+ * Factory function to create a persistent TcpStream connection to a target.
  * Wraps the native side emitter and subscribes to the targets data messages (string).
  * The TcpStream currently emits per line of data received . That is it reads data from the socket until a new line is reached, at which time
  * it will emit the data read (by calling onData(data,null). If an error is received or the connection is dropped it onData will be called
@@ -115,18 +116,30 @@ interface TcpStream {
  * Note: Receiving an 'EOF' error from the target we're connected to signifies the end of a stream or the target dropped the connection.
  *       This will cause the module to drop the TcpConnection and remove all data event listeners.
  *       Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
- * @param param {target: String, writeTimeout: Number} :
+ * @param param {target: string, writeTimeout: number, connectionTimeout: number } :
  *        `target` onion to connect to (ex: kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001)
  *        'writeTimeout' in seconds to wait before timing out on writing to the socket (Defaults to 7)
+ *        'connectionTimeout' in MilliSeconds to wait before timing out on connecting to the Target (Defaults to 15000 = 15 seconds)
+ *        'numberConcurrentWrites' Number of maximum messages to write concurrently on the Tcp socket. Defaults to 4. If more than numberConcurrentWrites messages are recieved they are placed on queue to be dispatched as soon as a previous message write resolves.
  * @param onData TcpConnDatahandler node style callback called when data or an error is received for this connection
  * @returns TcpStream
  */
-const createTcpConnection = async (
-  param: { target: string; writeTimeout?: number },
+const _createTcpConnection = async (
+  param: {
+    target: string;
+    connectionTimeout?: number;
+    writeTimeout?: number;
+    numberConcurrentWrites?: number;
+  },
   onData: TcpConnDatahandler
 ): Promise<TcpStream> => {
   const { target } = param;
-  await NativeModules.TorBridge.startTcpConn(target);
+  const connectionTimeout = param.connectionTimeout || 15000;
+  const writeQueueConcurrency = param.numberConcurrentWrites || 4;
+  const connId = await NativeModules.TorBridge.startTcpConn(
+    target,
+    connectionTimeout
+  );
   let lsnr_handle: EmitterSubscription[] = [];
   /**
    * Handles errors from Tcp Connection
@@ -135,19 +148,23 @@ const createTcpConnection = async (
   const onError = async (event: string) => {
     if (event.toLowerCase() === 'eof') {
       console.warn(
-        `Got to end of stream on TcpStream to ${target}. Removing listners`
+        `Got to end of stream on TcpStream to ${target} having connection Id ${connId}. Removing listners`
       );
-      await close();
+      try {
+        await close();
+      } catch (err) {
+        console.warn('RnTor: onError close execution error', err);
+      }
     }
   };
   if (Platform.OS === 'android') {
     lsnr_handle.push(
-      DeviceEventEmitter.addListener(`${target}-data`, (event) => {
+      DeviceEventEmitter.addListener(`${connId}-data`, (event) => {
         onData(event);
       })
     );
     lsnr_handle.push(
-      DeviceEventEmitter.addListener(`${target}-error`, async (event) => {
+      DeviceEventEmitter.addListener(`${connId}-error`, async (event) => {
         await onError(event);
         await onData(undefined, event);
       })
@@ -156,25 +173,93 @@ const createTcpConnection = async (
     const emitter = new NativeEventEmitter(NativeModules.TorBridge);
     lsnr_handle.push(
       emitter.addListener(`torTcpStreamData`, (event) => {
-        onData(event);
+        const [uuid, data] = event.split('||', 2);
+        if (connId === uuid) {
+          onData(data);
+        }
       })
     );
     lsnr_handle.push(
       emitter.addListener(`torTcpStreamError`, async (event) => {
-        await onError(event);
-        await onData(undefined, event);
+        const [uuid, data] = event.split('||', 2);
+        if (connId === uuid) {
+          await onError(data);
+          await onData(undefined, data);
+        }
       })
     );
   }
   const writeTimeout = param.writeTimeout || 7;
   const write = (msg: string) =>
-    NativeModules.TorBridge.sendTcpConnMsg(target, msg, writeTimeout);
+    NativeModules.TorBridge.sendTcpConnMsg(connId, msg, writeTimeout);
   const close = () => {
     lsnr_handle.map((e) => e.remove());
-    return NativeModules.TorBridge.stopTcpConn(target);
+    return NativeModules.TorBridge.stopTcpConn(connId);
   };
-  return { close, write };
+
+  /**
+   * Wrap write with a JS queue for non V8 engines
+   */
+  const writeMessageQueue = queue<{
+    msg: string;
+    res: (x: any) => void;
+    rej: (x: any) => void;
+  }>(async (payload, cb) => {
+    const { msg, res, rej } = payload;
+    try {
+      const result = await write(msg);
+      res(result);
+    } catch (err) {
+      rej(err);
+    } finally {
+      cb();
+    }
+  }, writeQueueConcurrency);
+
+  writeMessageQueue.drain(() =>
+    console.log(
+      'notice: All tcpConnection write messages requests have been disptached..'
+    )
+  );
+  return {
+    close,
+    write: (msg: string) =>
+      new Promise((res, rej) => writeMessageQueue.push({ msg, res, rej })),
+  };
 };
+
+const createTcpConnQueue = queue<{
+  param: Parameters<typeof _createTcpConnection>;
+  res: (x: any) => void;
+  rej: (x: any) => void;
+}>(async (payload, cb) => {
+  const { param, res, rej } = payload;
+  try {
+    const result = await _createTcpConnection(...param);
+    res(result);
+  } catch (err) {
+    console.error('error creating tcp conn', err);
+    rej(err);
+  } finally {
+    cb();
+  }
+}, 1);
+
+createTcpConnQueue.drain(() =>
+  console.log(
+    'notice: All requested TcpConnections requests have been dispatched..'
+  )
+);
+
+/**
+ * We expose _createTcpConnection publicly as a wrapped queue to avoid JS->Native bridge hang issue for non V8 engines
+ */
+const createTcpConnection = (
+  ...param: Parameters<typeof _createTcpConnection>
+): ReturnType<typeof _createTcpConnection> =>
+  new Promise((res, rej) => {
+    createTcpConnQueue.push({ param, res, rej });
+  });
 
 type TorType = {
   /**
@@ -258,17 +343,45 @@ const TorBridge: NativeTor = NativeModules.TorBridge;
  * @param startDaemonOnActive
  * @default false
  * When set to true will automatically start/restart the Tor daemon when the application is bought back to the foreground (from the background)
+ * @param numberConcurrentRequests If sent to > 0 this will instruct the module to queue requests on the JS side before sending them over the Native bridge. Requests will get exectued with numberConcurrentRequests concurent requests. Note setting this to 0 disables JS sided queueing and sends requests directly to Native bridge as they are recieved. This is useful if you're running the stock/hermes RN JS engine that has a tendency off breaking under heavy multithreaded work. If you using V8 you can set this to 0 to disable JS sided queueing and thus get maximum performance.
+ * @default 4
  * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
  * @default The os the module is running on.
  */
 export default ({
   stopDaemonOnBackground = true,
   startDaemonOnActive = false,
+  bootstrapTimeoutMs = 25000,
+  numberConcurrentRequests = 4,
   os = Platform.OS,
 } = {}): TorType => {
   let bootstrapPromise: Promise<number> | undefined;
   let lastAppState: AppStateStatus = 'active';
   let _appStateLsnerSet: boolean = false;
+
+  let requestQueue: ReturnType<typeof queue> | undefined;
+  if (numberConcurrentRequests > 0) {
+    requestQueue = queue<{
+      res: (x: any) => void;
+      rej: (x: any) => void;
+      request: () => Promise<RequestResponse>;
+    }>(async (task, cb) => {
+      const { res, rej, request } = task;
+      try {
+        const result = await request();
+        res(result);
+      } catch (err) {
+        rej(err);
+      } finally {
+        cb();
+      }
+    }, numberConcurrentRequests);
+
+    requestQueue.drain(() =>
+      console.log('notice: Request queue has been processed')
+    );
+  }
+
   const _handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (
       startDaemonOnActive &&
@@ -297,7 +410,9 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise = NativeModules.TorBridge.startDaemon();
+      bootstrapPromise = NativeModules.TorBridge.startDaemon(
+        bootstrapTimeoutMs
+      );
     }
     return bootstrapPromise;
   };
@@ -332,16 +447,26 @@ export default ({
     AppState.addEventListener('change', _handleAppStateChange);
   }
 
+  /**
+   * Wraps requests to be queued or executed directly.
+   * numberConcurrentRequests > 0 will cause tasks to be wrapped in a JS side queue
+   */
+  const requestQueueWrapper = (
+    request: () => Promise<RequestResponse>
+  ): Promise<RequestResponse> => {
+    return new Promise((res, rej) =>
+      numberConcurrentRequests > 0
+        ? requestQueue?.push({ request, res, rej })
+        : request().then(res).catch(rej)
+    );
+  };
+
   return {
     async get(url: string, headers?: Headers, trustSSL: boolean = true) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.GET,
-          '',
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(url, RequestMethod.GET, '', headers || {}, trustSSL)
         )
       );
     },
@@ -353,12 +478,14 @@ export default ({
     ) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.POST,
-          body,
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(
+            url,
+            RequestMethod.POST,
+            body,
+            headers || {},
+            trustSSL
+          )
         )
       );
     },
@@ -370,12 +497,14 @@ export default ({
     ) {
       await startIfNotStarted();
       return await onAfterRequest(
-        await TorBridge.request(
-          url,
-          RequestMethod.DELETE,
-          body || '',
-          headers || {},
-          trustSSL
+        await requestQueueWrapper(() =>
+          TorBridge.request(
+            url,
+            RequestMethod.DELETE,
+            body || '',
+            headers || {},
+            trustSSL
+          )
         )
       );
     },

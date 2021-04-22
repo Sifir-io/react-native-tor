@@ -1,4 +1,5 @@
 framework module "Libsifir_ios" {
     header "Libsifir_ios.h"
+    header "sifir_typedef.h"
     export *
 }

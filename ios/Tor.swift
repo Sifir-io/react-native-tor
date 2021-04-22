@@ -148,8 +148,8 @@ class Tor: RCTEventEmitter {
     }
     
     
-    @objc(startDaemon:rejecter:)
-    func startDaemon( resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
+    @objc(startDaemon:resolver:rejecter:)
+    func startDaemon(timeoutMs:NSNumber, resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
         if service != nil || starting {
             reject("TOR.START","Tor Service Already Running. Call `stopDaemon` first.",NSError.init(domain: "TOR.START", code: 01));
             return;
@@ -168,7 +168,9 @@ class Tor: RCTEventEmitter {
                 defer {
                     self.starting = false;
                 }
-                let call_result = get_owned_TorService(path, socksPort).pointee;
+                // FIXME here make the timeout a param
+                // better way to automatically have the JS promise handle a fail ?
+                let call_result = get_owned_TorService(path, socksPort,timeoutMs.uint64Value).pointee;
                 switch(call_result.message.tag){
                 case Success:
                     self.service = Optional.some(call_result.result);
@@ -177,7 +179,7 @@ class Tor: RCTEventEmitter {
                     return;
                 case Error:
                     // Convert RustByteSlice to String
-                    if let error_body = call_result.message.error._0 {
+                    if let error_body = call_result.message.error {
                         let error_string = String.init(cString: error_body);
                         reject("TOR.START",error_string,NSError.init(domain: "TOR", code: 0))
                     } else {
@@ -248,37 +250,50 @@ class Tor: RCTEventEmitter {
         ["torTcpStreamData","torTcpStreamError"]
     }
     
-    @objc(startTcpConn:resolver:rejecter:)
-    func startTcpConn(target:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+    @objc(startTcpConn:timeoutMs:resolver:rejecter:)
+    func startTcpConn(target:String,timeoutMs:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
         guard let socksProxy = self.proxySocksPort else {
             reject("TOR.TCPCONN.startTcpConn","SocksProxy not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
             return;
         }
         
-        guard self.streams[target] == nil else {
-            reject("TOR.TCPCONN.starStrean","Stream for target \(target) already exists! Call stopConn",NSError.init(domain: "TOR", code: 01));
-            return;
-        }
-        let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)").pointee;
+        let uuid = UUID().uuidString;
+        
+        let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)",timeoutMs.uint64Value).pointee;
         switch(call_result.message.tag){
         case Success:
             let stream = call_result.result;
-            self.streams[target] = stream;
+            self.streams[uuid] = stream;
             // Create swift observer wrapper to store context
             let observerWrapper = ObserverSwift(onSuccess:{ (data) in
-                self.sendEvent(withName: "torTcpStreamData", body: data)
+                self.sendEvent(withName: "torTcpStreamData", body: "\(uuid)||\(data)")
             }, onError:{ (data) in
                 // On Eof destrory stream and remove from map
                 // TODO update this when streaming streams
                 if(data == "EOF"){
-                    guard let stream = self.streams[target] else{
+                    guard let stream = self.streams[uuid] else{
                         print("Note: EOF but stream already destroyed, returning...")
                         return;
                     }
                     tcp_stream_destroy(stream);
-                    self.streams[target] = nil;
+                    self.streams[uuid] = nil;
+                } else if (data.contains("NotConnected")){
+                    guard self.streams[uuid] != nil else{
+                        print("Note: EOF but stream already destroyed, returning...")
+                        return;
+                    }
+                    // Stream pointer could be already delocated from rust side here
+                    // so don't try to destory it just remove it from map of references.
+                    // Worst case we create a new one and the memory leak gets recycled
+                    // when app restarts
+                    // TODO way to better coordinate this.
+                    // tcp_stream_destroy(stream);
+                    self.streams[uuid] = nil;
+                } else {
+                    print("Got observerWrapper event but not EOF",data )
+                    
                 }
-                self.sendEvent(withName: "torTcpStreamError", body: data)
+                self.sendEvent(withName: "torTcpStreamError", body: "\(uuid)||\(data)")
             },target:target);
             // Prepare pointer to context and observer callbacks as Retained
             let owner = UnsafeMutableRawPointer(Unmanaged.passRetained(observerWrapper).toOpaque());
@@ -297,11 +312,11 @@ class Tor: RCTEventEmitter {
             }
             let obv = Observer(context: owner, on_success: onSuccess, on_err:onError);
             tcp_stream_on_data(stream,obv);
-            resolve(true);
+            resolve(uuid);
             return;
         case Error:
             // Convert RustByteSlice to String
-            if let error_body = call_result.message.error._0 {
+            if let error_body = call_result.message.error {
                 let error_string = String.init(cString: error_body);
                 reject("TOR.TCPCONN.startTcpConn",error_string,NSError.init(domain: "TOR", code: 0))
             } else {
@@ -331,7 +346,7 @@ class Tor: RCTEventEmitter {
             resolve(true);
             return;
         case Error:
-            if let error_body = result.error._0 {
+            if let error_body = result.error {
                 let error_string = String.init(cString: error_body);
                 reject("TOR.TCPCONN.sendTcpConnMsg",error_string,NSError.init(domain: "TOR", code: 0))
             } else {
