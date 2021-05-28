@@ -1,2 +1,2 @@
 typedef struct OwnedTorService OwnedTorService;
-typedef struct TcpSocksStream TcpSocksStream;
+typedef struct TcpSocksStream  TcpSocksStream;

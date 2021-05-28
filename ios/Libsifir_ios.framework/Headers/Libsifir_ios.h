@@ -57,13 +57,13 @@ struct BoxedResult_TcpSocksStream *tcp_stream_start(const char *target,
  *# Safety
  * Send a Message over a tcpStream
  */
-struct ResultMessage *tcp_stream_on_data(TcpSocksStream *stream_ptr, struct Observer observer);
+struct ResultMessage *tcp_stream_on_data(TcpSocksStream *stream, struct Observer observer);
 
 /**
  *# Safety
  * Send a Message over a tcpStream
  */
-struct ResultMessage *tcp_stream_send_msg(TcpSocksStream *stream_ptr,
+struct ResultMessage *tcp_stream_send_msg(TcpSocksStream *stream,
                                           const char *msg,
                                           uint64_t timeout);
 
