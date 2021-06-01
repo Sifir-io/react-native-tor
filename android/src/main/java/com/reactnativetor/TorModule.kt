@@ -57,8 +57,10 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
   private var _streams: HashMap<String, TcpSocksStream> = HashMap();
-//  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
-  private val executorService : ThreadPoolExecutor = ThreadPoolExecutor(4,4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>());
+
+  //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+  private val executorService: ThreadPoolExecutor =
+    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
 
   /**
@@ -172,7 +174,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
           promise.resolve(socksPort);
         }, {
           _starting = false;
-          promise.reject(it);
+          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
         }).run();
 
       } catch (e: Exception) {
@@ -243,7 +245,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         throw Throwable("Tor Service not running, call startDaemon first")
       }
       var stream = _streams[connId]
-          ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
+        ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
       stream.send_data(msg, timeoutSec.toLong());
       promise.resolve(true);
     } catch (e: Exception) {

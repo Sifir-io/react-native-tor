@@ -37,7 +37,7 @@ class TorBridgeRequest constructor(
         }
       }
       is RequestResult.Success -> mPromise!!.resolve(result.result)
-      else -> mPromise!!.reject("Unable to process RequestResult: Exhaustive Clause")
+      else -> mPromise!!.reject("Unable to process RequestResult","RequestResult Exhaustive Clause")
     }
     mPromise = null
   }
@@ -47,7 +47,7 @@ class TorBridgeRequest constructor(
     val request = when (param.method.toUpperCase()) {
       "POST" -> {
         // Check Content-Type headers provided
-        // Currently only support application/x-www-form-urlencoded
+        // Currently only supports application/x-www-form-urlencoded
         // If not provided defaults to application/json
         // TODO Expand supported content formats ?
         val body = when (param.headers?.get("Content-Type") ?: "application/json") {
