@@ -67,8 +67,11 @@ interface ProcessedRequestResponse extends RequestResponse {}
  */
 interface NativeTor {
   startDaemon(timeoutMs: number): Promise<SocksPortNumber>;
+
   stopDaemon(): Promise<void>;
+
   getDaemonStatus(): Promise<string>;
+
   request<T extends RequestMethod>(
     url: string,
     method: T,
@@ -76,21 +79,125 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
+
   startTcpConn(target: string, timeoutMs: number): Promise<string>;
+
   sendTcpConnMsg(
     target: string,
     msg: string,
     timeoutSeconds: number
   ): Promise<boolean>;
+
   stopTcpConn(target: string): Promise<boolean>;
+
+  createHiddenService(
+    hiddenServicePort: number,
+    destinationPort: number
+  ): Promise<HiddenServiceParam>;
+
+  startHttpHiddenserviceHandler(port: number): Promise<String>;
 }
 
+/**
+ * HiddenServiceDataHandler data handler.
+ * If err is populated then there was an error
+ */
+type HiddenServiceDataHandler = (
+  data?: HttpServiceRequest,
+  err?: string
+) => void;
+
+interface HiddenServiceParam {
+  onionUrl: string;
+  secretKey: string;
+}
+interface HttpServiceRequest {
+  method: RequestMethod;
+  headers: { [header: string]: string };
+  body: string;
+  version: number;
+  path: string;
+}
+
+const _createHiddenService = async (
+  hiddenServicePort: number,
+  destinationPort: number
+): Promise<HiddenServiceParam> => {
+  let hiddenServiceJson = await NativeModules.TorBridge.createHiddenService(
+    hiddenServicePort,
+    destinationPort
+  );
+  console.log('RnTor:CreateHiddenService', hiddenServiceJson);
+  return JSON.parse(hiddenServiceJson);
+};
+
+const _startHttpService = async (
+  port: number,
+  cb: HiddenServiceDataHandler
+) => {
+  let serviceId = await NativeModules.TorBridge.startHttpHiddenserviceHandler(
+    port
+  );
+
+  const lsnr_handle: EmitterSubscription[] = [];
+  /**
+   * Handles errors from Tcp Connection
+   * Mainly check for EOF (connection closed/end of stream) and removes lnsers
+   */
+  const onError = async (event: string) => {
+    console.error('RNTor:HttpServiceHandler:', event);
+    cb(undefined, event);
+  };
+  const onData = async (event: string) => {
+    const httpRequest: HttpServiceRequest = JSON.parse(event);
+    console.log('RNTor:HttpServiceHandler', httpRequest);
+    cb(httpRequest, undefined);
+  };
+
+  if (Platform.OS === 'android') {
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${serviceId}-data`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${serviceId}-error`, async (event) => {
+        await onError(event);
+      })
+    );
+  } else if (Platform.OS === 'ios') {
+    const emitter = new NativeEventEmitter(NativeModules.TorBridge);
+    lsnr_handle.push(
+      emitter.addListener(`hsServiceHttpHandlerRequest`, (event) => {
+        const [uuid, data] = event.split('||', 2);
+        if (serviceId === uuid) {
+          onData(data);
+        }
+      })
+    );
+
+    lsnr_handle.push(
+      emitter.addListener(`hsServiceHttpHandlerError`, async (event) => {
+        const [uuid, data] = event.split('||', 2);
+        if (serviceId === uuid) {
+          await onError(data);
+        }
+      })
+    );
+  }
+  const close = () => {
+    lsnr_handle.map((e) => e.remove());
+    // FIXME todo
+    // return NativeModules.TorBridge.stopTcpConn(serviceId);
+  };
+  return { close };
+};
+//-----------
 /**
  * Tcpstream data handler.
  * If err is populated then there was an error
  */
 type TcpConnDatahandler = (data?: string, err?: string) => void;
-
 /**
  * Interface returned by createTcpConnection factory
  */
@@ -331,6 +438,8 @@ type TorType = {
    * See createTcpConnectio;
    */
   createTcpConnection: typeof createTcpConnection;
+  createHiddenService: typeof _createHiddenService;
+  startHttpService: typeof _startHttpService;
 };
 
 const TorBridge: NativeTor = NativeModules.TorBridge;
@@ -410,9 +519,8 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise = NativeModules.TorBridge.startDaemon(
-        bootstrapTimeoutMs
-      );
+      bootstrapPromise =
+        NativeModules.TorBridge.startDaemon(bootstrapTimeoutMs);
     }
     return bootstrapPromise;
   };
@@ -513,5 +621,7 @@ export default ({
     request: TorBridge.request,
     getDaemonStatus: TorBridge.getDaemonStatus,
     createTcpConnection,
+    createHiddenService: _createHiddenService,
+    startHttpService: _startHttpService,
   } as TorType;
 };

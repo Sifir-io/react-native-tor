@@ -40,7 +40,12 @@ class Tor: RCTEventEmitter {
     var proxySocksPort:Optional<UInt16> = nil;
     var starting:Bool = false;
     var streams:Dictionary<String,OpaquePointer> = [:];
+    var hiddenServices:Dictionary<String,OpaquePointer> = [:];
     var hasLnser = false;
+
+    override init() {
+        Libsifir_ios.start_logger();
+    }
     
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
@@ -168,8 +173,6 @@ class Tor: RCTEventEmitter {
                 defer {
                     self.starting = false;
                 }
-                // FIXME here make the timeout a param
-                // better way to automatically have the JS promise handle a fail ?
                 let call_result = get_owned_TorService(path, socksPort,timeoutMs.uint64Value).pointee;
                 switch(call_result.message.tag){
                 case Success:
@@ -245,9 +248,8 @@ class Tor: RCTEventEmitter {
         self.hasLnser = false;
     }
     
-    // FIXME here it needs to support, so i guess we can use
     override func supportedEvents() -> [String]! {
-        ["torTcpStreamData","torTcpStreamError"]
+        ["torTcpStreamData","torTcpStreamError","hsServiceHttpHandlerRequest","hsServiceHttpHandlerError"]
     }
     
     @objc(startTcpConn:timeoutMs:resolver:rejecter:)
@@ -258,8 +260,8 @@ class Tor: RCTEventEmitter {
         }
         
         let uuid = UUID().uuidString;
-        
         let call_result = tcp_stream_start(target, "127.0.0.1:\(socksProxy)",timeoutMs.uint64Value).pointee;
+        
         switch(call_result.message.tag){
         case Success:
             let stream = call_result.result;
@@ -368,5 +370,88 @@ class Tor: RCTEventEmitter {
         self.streams[target] = nil;
         tcp_stream_destroy(stream);
         resolve(true);
+    }
+    
+    @objc(createHiddenService:destinationPort:resolver:rejecter:)
+    func createHiddenService(hiddenServicePort:NSNumber,destinationPort:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let _ = self.service else {
+            reject("TOR.createHiddenService","Service not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        let result = create_hidden_service(self.service, destinationPort.uint16Value, hiddenServicePort.uint16Value).pointee;
+        switch(result.message.tag){
+        case Success:
+            guard let hs = result.result else {                  reject("TOR.HS.createHiddenService","missing result",NSError.init(domain: "TOR", code: 0))
+                return;
+            };
+            defer {
+                destroy_cstr(hs.pointee);
+            }
+            let hs_string =  String(cString: hs.pointee!);
+            resolve(hs_string);
+            return;
+            
+        case Error:
+            if let error_body = result.message.error {
+                let error_string = String.init(cString: error_body);
+                reject("TOR.HS.createHiddenService",error_string,NSError.init(domain: "TOR", code: 0))
+            } else {
+                reject("TOR.HS.createHiddenService","Unknown hidden service creation error",NSError.init(domain: "TOR", code: 99));
+            }
+            return;
+        default:
+            reject("TOR.HS.createHiddenService","Unknown hidden service creation error",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+    }
+    
+    @objc(startHttpHiddenserviceHandler:resolver:rejecter:)
+    func startHttpHiddenserviceHandler(port:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        let uuid = UUID().uuidString;
+        
+        let observerWrapper = ObserverSwift(onSuccess:{ (data) in
+            self.sendEvent(withName: "hsServiceHttpHandlerRequest", body: "\(uuid)||\(data)")
+        }, onError:{ (data) in
+            self.sendEvent(withName: "hsServiceHttpHandlerError", body: "\(uuid)||\(data)")
+        },target:uuid);
+        
+        // Prepare pointer to context and observer callbacks as Retained
+        let owner = UnsafeMutableRawPointer(Unmanaged.passRetained(observerWrapper).toOpaque());
+        
+        let onSuccess:@convention(c) (UnsafeMutablePointer<Int8>?, UnsafeRawPointer?) -> Void = { (data, context) in
+            // take unretained so we don't clear it
+            let obv = Unmanaged<ObserverSwift>.fromOpaque(context!).takeUnretainedValue();
+            obv.onSuccess(String(cString: data!));
+            destroy_cstr(data);
+        }
+        let onError:@convention(c) (UnsafeMutablePointer<Int8>?, UnsafeRawPointer?) -> Void = { (data, context) in
+            let obv = Unmanaged<ObserverSwift>.fromOpaque(context!).takeUnretainedValue();
+            obv.onError(String(cString: data!));
+            destroy_cstr(data);
+        }
+        let obv = Observer(context: owner, on_success: onSuccess, on_err:onError);
+        
+        let call_result = start_http_hidden_service_handler(port.uint16Value,obv).pointee;
+        
+        switch(call_result.message.tag){
+        case Success:
+            let hs = call_result.result;
+            self.hiddenServices[uuid] = hs;
+            resolve(uuid)
+            return;
+        case Error:
+            // Convert RustByteSlice to String
+            if let error_body = call_result.message.error {
+                let error_string = String.init(cString: error_body);
+                reject("TOR.HS.startHttpHiddenserviceHandler",error_string,NSError.init(domain: "TOR", code: 0))
+            } else {
+                reject("TOR.HS.startHttpHiddenserviceHandler","Unknown startHttpHiddenserviceHandler startup error",NSError.init(domain: "TOR", code: 99));
+            }
+            return;
+        default:
+            reject("TOR.startHttpHiddenserviceHandler","unknown startup result",NSError.init(domain: "TOR", code: 99));
+            return;
+            
+        }
     }
 }

@@ -25,6 +25,20 @@ RCT_EXTERN_METHOD(
                   )
 
 RCT_EXTERN_METHOD(
+                  createHiddenService:(nonnull NSNumber*)hiddenServicePort
+                  destinationPort:(nonnull NSNumber*)destinationPort
+                  resolver:(RCTPromiseResolveBlock)resolver
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
+
+RCT_EXTERN_METHOD(
+                  startHttpHiddenserviceHandler:(nonnull NSNumber*)port
+                  resolver:(RCTPromiseResolveBlock)resolver
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
+
+
+RCT_EXTERN_METHOD(
         request:(NSString*)url
         method:(NSString*)method
         jsonBody:(NSString*)jsonBody
