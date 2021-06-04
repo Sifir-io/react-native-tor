@@ -53,6 +53,7 @@ class DataObserverEmitter(
 }
 
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+  private var _client: OkHttpClient? = null;
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
@@ -60,7 +61,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
   //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
   private val executorService: ThreadPoolExecutor =
-    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
+    ThreadPoolExecutor(2, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
 
   /**
@@ -126,24 +127,33 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     method: String,
     jsonBody: String,
     headers: ReadableMap,
+    // FIXME move this to startDeamon call
     trustAllSSl: Boolean,
     promise: Promise
   ) {
     if (service == null) {
       promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+      return;
     }
 
-    var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
-      .proxy(proxy)
-      .connectTimeout(10, TimeUnit.SECONDS)
-      .writeTimeout(10, TimeUnit.SECONDS)
-      .readTimeout(10, TimeUnit.SECONDS)
-      .build()
+//    if(_client !is OkHttpClient){
+//       _client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
+//        .proxy(proxy)
+//        .connectTimeout(10, TimeUnit.SECONDS)
+//        .writeTimeout(10, TimeUnit.SECONDS)
+//        .readTimeout(10, TimeUnit.SECONDS)
+//        .build()
+//    }
+
+    if(_client !is OkHttpClient){
+      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
+      return;
+    }
 
     val param = TaskParam(method, url, jsonBody, headers.toHashMap())
     executorService.execute {
       try {
-        val task = TorBridgeRequest(promise, client, param);
+        val task = TorBridgeRequest(promise, _client!!, param);
         task.run()
       } catch (e: Exception) {
         Log.d("TorBridge", "error on request: $e")
@@ -157,9 +167,11 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   fun startDaemon(timeoutMs: Double, promise: Promise) {
     if (service != null) {
       promise.reject(Throwable("Service already running, call stopDaemon first"))
+      return;
     }
     if (this._starting) {
       promise.reject(Throwable("Service already starting"))
+      return;
     }
     _starting = true;
     executorService.execute {
@@ -171,6 +183,14 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
           service = it
           proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
           _starting = false;
+
+          _client = getUnsafeOkHttpClient()
+            .proxy(proxy)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build();
+
           promise.resolve(socksPort);
         }, {
           _starting = false;
