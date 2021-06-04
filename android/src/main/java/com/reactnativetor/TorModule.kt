@@ -61,7 +61,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
   //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
   private val executorService: ThreadPoolExecutor =
-    ThreadPoolExecutor(2, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
+    ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
 
   /**
