@@ -42,7 +42,7 @@ class Tor: RCTEventEmitter {
     var streams:Dictionary<String,OpaquePointer> = [:];
     var hiddenServices:Dictionary<String,OpaquePointer> = [:];
     var hasLnser = false;
-
+    
     override init() {
         Libsifir_ios.start_logger();
     }
@@ -372,13 +372,13 @@ class Tor: RCTEventEmitter {
         resolve(true);
     }
     
-    @objc(createHiddenService:destinationPort:resolver:rejecter:)
-    func createHiddenService(hiddenServicePort:NSNumber,destinationPort:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+    @objc(createHiddenService:destinationPort:secretKey:resolver:rejecter:)
+    func createHiddenService(hiddenServicePort:NSNumber,destinationPort:NSNumber,secretKey:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
         guard let _ = self.service else {
             reject("TOR.createHiddenService","Service not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
             return;
         }
-        let result = create_hidden_service(self.service, destinationPort.uint16Value, hiddenServicePort.uint16Value).pointee;
+        let result = create_hidden_service(self.service, destinationPort.uint16Value, hiddenServicePort.uint16Value,secretKey).pointee;
         switch(result.message.tag){
         case Success:
             guard let hs = result.result else {                  reject("TOR.HS.createHiddenService","missing result",NSError.init(domain: "TOR", code: 0))

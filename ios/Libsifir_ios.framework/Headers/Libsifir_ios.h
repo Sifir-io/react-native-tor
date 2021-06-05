@@ -87,7 +87,8 @@ struct ResultMessage *tcp_stream_send_msg(TcpSocksStream *stream_ptr,
  */
 struct BoxedResult_____c_char *create_hidden_service(OwnedTorService *owned_client,
                                                      uint16_t dst_port,
-                                                     uint16_t hs_port);
+                                                     uint16_t hs_port,
+                                                     const char *secret_key);
 
 /**
  *# Safety

@@ -92,7 +92,8 @@ interface NativeTor {
 
   createHiddenService(
     hiddenServicePort: number,
-    destinationPort: number
+    destinationPort: number,
+    secretKey?: string
   ): Promise<HiddenServiceParam>;
 
   startHttpHiddenserviceHandler(port: number): Promise<String>;
@@ -121,11 +122,13 @@ interface HttpServiceRequest {
 
 const _createHiddenService = async (
   hiddenServicePort: number,
-  destinationPort: number
+  destinationPort: number,
+  secretKey?: string
 ): Promise<HiddenServiceParam> => {
   let hiddenServiceJson = await NativeModules.TorBridge.createHiddenService(
     hiddenServicePort,
-    destinationPort
+    destinationPort,
+    secretKey ?? ''
   );
   console.log('RnTor:CreateHiddenService', hiddenServiceJson);
   return JSON.parse(hiddenServiceJson);

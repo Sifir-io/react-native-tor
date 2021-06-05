@@ -27,6 +27,7 @@ RCT_EXTERN_METHOD(
 RCT_EXTERN_METHOD(
                   createHiddenService:(nonnull NSNumber*)hiddenServicePort
                   destinationPort:(nonnull NSNumber*)destinationPort
+                  secretKey:(NSString*)secretKey
                   resolver:(RCTPromiseResolveBlock)resolver
                   rejecter: (RCTPromiseRejectBlock)reject
                   )
