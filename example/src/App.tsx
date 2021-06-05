@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, View, Text, Button, TextInput } from 'react-native';
+import { StyleSheet, View, Text, Button, TextInput, Alert } from 'react-native';
 import TorBridge from 'react-native-tor';
 
 type Await<T> = T extends PromiseLike<infer U> ? U : T;
@@ -16,6 +16,7 @@ export default function App() {
   const [hiddenServicePort, setHiddenServicePort] = React.useState(20000);
   const [hiddenServiceDestinationPort, setHiddenServiceDestinationPort] =
     React.useState(20011);
+  const [hiddenServiceKey, setHiddenServiceKey] = React.useState('');
   const [hasStream, setHasStream] = React.useState(false);
   const [streamConnectionTimeoutMS, setStreamConnectionTimeoutMS] =
     React.useState(15000);
@@ -160,11 +161,17 @@ export default function App() {
               onChangeText={(v) => setHiddenServiceDestinationPort(Number(v))}
               value={hiddenServiceDestinationPort.toString()}
             />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServiceKey(v)}
+              value={hiddenServiceKey}
+            />
             <Button
               onPress={() =>
                 client.createHiddenService(
                   hiddenServicePort,
-                  hiddenServiceDestinationPort
+                  hiddenServiceDestinationPort,
+                  hiddenServiceKey.length ? hiddenServiceKey.trim() : ''
                 )
               }
               title="Create HS"
@@ -174,7 +181,10 @@ export default function App() {
                 client.startHttpService(
                   hiddenServiceDestinationPort,
                   (d, e) => {
-                    console.log('HISADAS', d, e);
+                    Alert.alert(
+                      `Got HTTP ${e ? 'Error' : 'Request'} `,
+                      `${JSON.stringify(d)} ${JSON.stringify(e)}`
+                    );
                   }
                 );
               }}
