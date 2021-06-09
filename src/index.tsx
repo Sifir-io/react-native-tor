@@ -97,6 +97,8 @@ interface NativeTor {
   ): Promise<HiddenServiceParam>;
 
   startHttpHiddenserviceHandler(port: number): Promise<String>;
+
+  stopHttpHiddenserviceHandler(id: number): Promise<boolean>;
 }
 
 /**
@@ -190,8 +192,7 @@ const _startHttpService = async (
   }
   const close = () => {
     lsnr_handle.map((e) => e.remove());
-    // FIXME todo
-    // return NativeModules.TorBridge.stopTcpConn(serviceId);
+    return NativeModules.TorBridge.stopHttpHiddenserviceHandler(serviceId);
   };
   return { close };
 };
@@ -522,8 +523,9 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise =
-        NativeModules.TorBridge.startDaemon(bootstrapTimeoutMs);
+      bootstrapPromise = NativeModules.TorBridge.startDaemon(
+        bootstrapTimeoutMs
+      );
     }
     return bootstrapPromise;
   };

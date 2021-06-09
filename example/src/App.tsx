@@ -4,8 +4,9 @@ import TorBridge from 'react-native-tor';
 
 type Await<T> = T extends PromiseLike<infer U> ? U : T;
 const client = TorBridge();
-let tcpStream: Await<ReturnType<typeof client['createTcpConnection']>> | null =
-  null;
+let tcpStream: Await<
+  ReturnType<typeof client['createTcpConnection']>
+> | null = null;
 
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
@@ -14,12 +15,16 @@ export default function App() {
     'http://3g2upl4pq6kufc4m.onion'
   );
   const [hiddenServicePort, setHiddenServicePort] = React.useState(20000);
-  const [hiddenServiceDestinationPort, setHiddenServiceDestinationPort] =
-    React.useState(20011);
+  const [
+    hiddenServiceDestinationPort,
+    setHiddenServiceDestinationPort,
+  ] = React.useState(20011);
   const [hiddenServiceKey, setHiddenServiceKey] = React.useState('');
   const [hasStream, setHasStream] = React.useState(false);
-  const [streamConnectionTimeoutMS, setStreamConnectionTimeoutMS] =
-    React.useState(15000);
+  const [
+    streamConnectionTimeoutMS,
+    setStreamConnectionTimeoutMS,
+  ] = React.useState(15000);
   React.useEffect(() => {
     _init();
   }, []);
