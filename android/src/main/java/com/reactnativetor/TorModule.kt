@@ -317,6 +317,25 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.reject(e)
     }
   }
+  @ReactMethod
+  fun deleteHiddenService(
+    onion: String,
+    promise: Promise
+  ) {
+    try {
+      if (service == null) {
+        promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+        return;
+      }
+      service!!.delete_hidden_service(onion);
+
+      promise.resolve(true);
+
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on deleteHiddenService : $e")
+      promise.reject(e)
+    }
+  }
 
   @ReactMethod
   fun startHttpHiddenserviceHandler(port: Int, promise: Promise) {

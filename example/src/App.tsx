@@ -20,6 +20,7 @@ export default function App() {
     setHiddenServiceDestinationPort,
   ] = React.useState(20011);
   const [hiddenServiceKey, setHiddenServiceKey] = React.useState('');
+  const [hiddenServiceOnion, setHiddenServiceOnion] = React.useState('');
   const [hasStream, setHasStream] = React.useState(false);
   const [
     streamConnectionTimeoutMS,
@@ -171,15 +172,29 @@ export default function App() {
               onChangeText={(v) => setHiddenServiceKey(v)}
               value={hiddenServiceKey}
             />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServiceOnion(v)}
+              value={hiddenServiceOnion}
+            />
             <Button
-              onPress={() =>
-                client.createHiddenService(
+              onPress={async () => {
+                const hs = await client.createHiddenService(
                   hiddenServicePort,
                   hiddenServiceDestinationPort,
                   hiddenServiceKey.length ? hiddenServiceKey.trim() : ''
-                )
-              }
+                );
+                setHiddenServiceKey(hs.secretKey);
+                setHiddenServiceOnion(hs.onionUrl);
+              }}
               title="Create HS"
+            />
+            <Button
+              disabled={hiddenServiceOnion?.length < 1}
+              onPress={async () => {
+                await client.deleteHiddenService(hiddenServiceOnion);
+              }}
+              title="Delete Hidden Serivce"
             />
             <Button
               onPress={() => {

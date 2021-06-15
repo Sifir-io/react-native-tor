@@ -96,8 +96,9 @@ interface NativeTor {
     secretKey?: string
   ): Promise<HiddenServiceParam>;
 
-  startHttpHiddenserviceHandler(port: number): Promise<String>;
+  deleteHiddenService(onion: string): Promise<boolean>;
 
+  startHttpHiddenserviceHandler(port: number): Promise<String>;
   stopHttpHiddenserviceHandler(id: number): Promise<boolean>;
 }
 
@@ -136,6 +137,10 @@ const _createHiddenService = async (
   return JSON.parse(hiddenServiceJson);
 };
 
+const _deleteHiddenService = async (onion: string): Promise<boolean> => {
+  await NativeModules.TorBridge.deleteHiddenService(onion);
+  return true;
+};
 const _startHttpService = async (
   port: number,
   cb: HiddenServiceDataHandler
@@ -443,6 +448,7 @@ type TorType = {
    */
   createTcpConnection: typeof createTcpConnection;
   createHiddenService: typeof _createHiddenService;
+  deleteHiddenService: typeof _deleteHiddenService;
   startHttpService: typeof _startHttpService;
 };
 
@@ -627,6 +633,7 @@ export default ({
     getDaemonStatus: TorBridge.getDaemonStatus,
     createTcpConnection,
     createHiddenService: _createHiddenService,
+    deleteHiddenService: _deleteHiddenService,
     startHttpService: _startHttpService,
   } as TorType;
 };
