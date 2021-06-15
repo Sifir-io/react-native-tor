@@ -481,4 +481,14 @@ class Tor: RCTEventEmitter {
             
         }
     }
+
+    func stopHttpHiddenserviceHandler(id:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let hsh = self.hiddenServices[id] else{
+            reject("TOR.HS.stopHttpHiddenserviceHandler","HiddenServiceHandler not detected",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        self.hiddenServices[id] = nil;
+        destroy_hidden_service_handler(hsh);
+        resolve(true);
+    }
 }
