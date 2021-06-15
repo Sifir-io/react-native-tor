@@ -405,6 +405,33 @@ class Tor: RCTEventEmitter {
         }
     }
     
+    @objc(deleteHiddenService:resolver:rejecter:)
+    func deleteHiddenService(onion:String,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
+        guard let _ = self.service else {
+            reject("TOR.deleteHiddenService","Service not detected, make sure Tor is started",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+        let result = delete_hidden_service(self.service, onion).pointee;
+        switch(result.tag){
+        case Success:
+            resolve(true);
+            return;
+
+        case Error:
+            if let error_body = result.error {
+                let error_string = String.init(cString: error_body);
+                reject("TOR.HS.deleteHiddenService",error_string,NSError.init(domain: "TOR", code: 0))
+            } else {
+                reject("TOR.HS.deleteHiddenService","Unknown hidden service creation error",NSError.init(domain: "TOR", code: 99));
+            }
+            return;
+        default:
+            reject("TOR.HS.deleteHiddenService","Unknown hidden service creation error",NSError.init(domain: "TOR", code: 99));
+            return;
+        }
+    }
+    
+    
     @objc(startHttpHiddenserviceHandler:resolver:rejecter:)
     func startHttpHiddenserviceHandler(port:NSNumber,resolve:RCTPromiseResolveBlock,reject:RCTPromiseRejectBlock){
         let uuid = UUID().uuidString;

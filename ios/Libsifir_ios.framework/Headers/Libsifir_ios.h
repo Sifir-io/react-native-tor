@@ -92,6 +92,12 @@ struct BoxedResult_____c_char *create_hidden_service(OwnedTorService *owned_clie
 
 /**
  *# Safety
+ * Deletes a Hidden service
+ */
+struct ResultMessage *delete_hidden_service(OwnedTorService *owned_client, const char *onion);
+
+/**
+ *# Safety
  * Starts an HTTP request server on dst_port calling the observer with data
  */
 struct BoxedResult_HiddenServiceHandler *start_http_hidden_service_handler(uint16_t dst_port,

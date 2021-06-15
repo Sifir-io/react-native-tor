@@ -33,6 +33,12 @@ RCT_EXTERN_METHOD(
                   )
 
 RCT_EXTERN_METHOD(
+                  deleteHiddenService:(NSString*)onion
+                  resolver:(RCTPromiseResolveBlock)resolver
+                  rejecter: (RCTPromiseRejectBlock)reject
+                  )
+
+RCT_EXTERN_METHOD(
                   startHttpHiddenserviceHandler:(nonnull NSNumber*)port
                   resolver:(RCTPromiseResolveBlock)resolver
                   rejecter: (RCTPromiseRejectBlock)reject
