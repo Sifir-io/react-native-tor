@@ -529,9 +529,8 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise = NativeModules.TorBridge.startDaemon(
-        bootstrapTimeoutMs
-      );
+      bootstrapPromise =
+        NativeModules.TorBridge.startDaemon(bootstrapTimeoutMs);
     }
     return bootstrapPromise;
   };

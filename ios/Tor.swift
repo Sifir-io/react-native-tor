@@ -43,10 +43,6 @@ class Tor: RCTEventEmitter {
     var hiddenServices:Dictionary<String,OpaquePointer> = [:];
     var hasLnser = false;
     
-    override init() {
-        Libsifir_ios.start_logger();
-    }
-    
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
         config.requestCachePolicy = URLRequest.CachePolicy.reloadIgnoringLocalCacheData;
@@ -159,6 +155,7 @@ class Tor: RCTEventEmitter {
             reject("TOR.START","Tor Service Already Running. Call `stopDaemon` first.",NSError.init(domain: "TOR.START", code: 01));
             return;
         }
+        Libsifir_ios.start_logger();
         starting = true;
         do {
             
