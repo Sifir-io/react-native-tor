@@ -41,6 +41,11 @@ class Tor: RCTEventEmitter {
     var starting:Bool = false;
     var streams:Dictionary<String,OpaquePointer> = [:];
     var hasLnser = false;
+  
+    @objc
+    override static func requiresMainQueueSetup() -> Bool {
+        return true
+    }
     
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
