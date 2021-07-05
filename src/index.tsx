@@ -111,10 +111,19 @@ type HiddenServiceDataHandler = (
   err?: string
 ) => void;
 
+/**
+ * Data returned when createHiddenService is called
+ * @field onionUrl The public url (with the port) that can be used to access this hidden service (note you must call startHttpService before you can actually get any data)
+   @field secretKey Base64 encoded ESCDA private key for this service. *DO NOT* share this key and store it securely. This key can be used to restore the hidden service by anyone!
+ */
 interface HiddenServiceParam {
   onionUrl: string;
   secretKey: string;
 }
+
+/**
+ * Data provided by the HTTP server attached to a hidden service
+ */
 interface HttpServiceRequest {
   method: RequestMethod;
   headers: { [header: string]: string };

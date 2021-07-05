@@ -1,5 +1,5 @@
 # React Native Tor
-A fully featured Tor Daemon and Onion Routing Client for your React Native iOS and Android Project!
+A fully featured Tor Daemon , Onion Routing Client and Hidden Service HTTP server for your React Native iOS and Android Project!
 :calling: :closed_lock_with_key: :globe_with_meridians:
 ## TL;DR
 In your project:
@@ -43,7 +43,7 @@ If you think this is awesome, please consider [contributing to Privacy and Opens
 - Embeds a fully functional Tor Daemon, with its own circuit (non exit) removing the dependency on Orbot and allowing Tor usage on IOS.
 - Provides a Socks5 proxy enabled REST client to allow you to make Rest calls on Onion URLs directly from JS just as you would with Axios, Frisbee etc..
 - Tcp socket support via a event like interface!
-- [WIP] Start a hidden service accessible via an Onion URL directly on your phone (in final test for upcoming 0.0.2 release)
+- Start a hidden service and HTTP server accessible via an Onion URL directly on your phone!
 - Provides guard functions and state management options to autostart/stop the daemon when REST calls are initiated and/or the application is backgrounded/foregrounded
 - TS Typed API for sanity.
 
@@ -156,6 +156,49 @@ Note:
      - This will cause the module to drop the TcpConnection and remove all data event listeners.
      - Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
 
+### Hidden Service (HS) Example
+```js
+// create a new hidden service
+// Accepting connections on port 20000 and forwarding the request to port 20011
+const hs = await client.createHiddenService(
+  20000,
+  20011,
+
+);
+//
+const {secretKey , onionUrl } = hs;
+// Store `secretKey` ESCDA base64 private key securley so you can re-create this HS later
+// secureStorage.save('key',secretKey);
+// Share your OnionURl with people you want to connect to your hidden service
+
+// Start http server with a callback to process data recieved (type HttpServiceRequest)
+// or errors (This example just creates an Alert whenever an HTTP request is recieved)
+const handler = client.startHttpService(
+  hiddenServiceDestinationPort,
+  (d, e) => {
+    Alert.alert(
+      `Got HTTP ${e ? 'Error' : 'Request'} `,
+      `${JSON.stringify(d)} ${JSON.stringify(e)}`
+    );
+  })
+
+
+// .. later on (once finished)
+// Stop the HTTP server
+handler.close()
+// delete hidden service using the onionURL as it's index
+client.deleteHiddenService(onionUrl);
+
+// Restore the hidden service using the secret key you had stored!
+// secretKey = secureStorage.load("key");
+const hs = await client.createHiddenService(
+  20000,
+  20011,
+  secretKey
+);
+// ..repeat above steps to attach an HTTP server and callback
+//
+```
 ## API reference
 Please reference [Typescript defs and JSDoc](./src/index.tsx) for details.
 
@@ -356,23 +399,17 @@ Know someone who want to add a bit more privacy to their Application / Product ?
 
 - Better API Docs
 - Event emitter from Rust to Native on Boostrap status
-- Enable secret service API
-    - Start new hidden service on phone.
-    - Restore hidden service from key.
 - Capture daemon logs into files.
 
 ### Backlog
 
+- Add Raw TCP socket listeners to Hidden Services.
 - Search for available ports for socks proxy for iOS
-- Return a Context API (status, etc..) as part of the package to make it easier for developers to build reactive components on topof.
 - Build on Request capability
   - PUT calls
   - DELETE
     - Add body support
-  - ~Sockets~
   - Streaming ?
-- ~Investigate stability builds on older mobile API's (Currently minSdk is Android 26 and iOS 10)~
-- Investigate the possibility of creating a NetworkExtension on iOS which act as a VPN for the app which regular REST libaries can be used on.
 
 ## License
 
