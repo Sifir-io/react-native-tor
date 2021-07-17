@@ -156,7 +156,9 @@ Note:
      - This will cause the module to drop the TcpConnection and remove all data event listeners.
      - Should you wish to reconnect to the target you must initiate a new connection by calling createTcpConnection again.
 
-### Hidden Service (HS) Example
+### Hidden Service (HS) Example (BETA)
+Note: This feature is still experimental *please* do report any bugs and strange behavoir you experience.
+
 ```js
 // create a new hidden service
 // Accepting connections on port 20000 and forwarding the request to port 20011
