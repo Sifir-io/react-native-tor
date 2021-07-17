@@ -325,7 +325,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       val serviceDetails =
         service!!.create_hidden_service(destinationPort,hiddenServicePort, secretKey);
 
-      val result = HashMap<String, String>();
+      val result = HashMap<Any?, Any?>();
 
       result.set("onionUrl", serviceDetails.get_onion_url());
       result.set("secretKey", serviceDetails.get_secret_b64());
