@@ -1,10 +1,12 @@
 package com.reactnativetor
 
+import android.content.Context
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.sifir.tor.DataObserver
 import com.sifir.tor.OwnedTorService
 import com.sifir.tor.TcpSocksStream
+import com.sifir.tor.HiddenServiceHandler
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -15,6 +17,7 @@ import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
+import org.json.JSONObject
 import java.util.UUID;
 import java.util.concurrent.*
 
@@ -52,13 +55,35 @@ class DataObserverEmitter(
   }
 }
 
+class HttpHandlerObserverEmitter(
+  private val handlerId: String,
+  private val reactContext: ReactApplicationContext,
+  private val serviceHandlers: HashMap<String, HiddenServiceHandler>
+) : DataObserver {
+  override fun onData(p0: String?) {
+    reactContext
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$handlerId-data", p0)
+  }
+
+  override fun onError(p0: String?) {
+    reactContext
+      .getJSModule(RCTDeviceEventEmitter::class.java)
+      .emit("$handlerId-error", p0)
+  }
+}
+
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+  private var _client: OkHttpClient? = null;
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
   private var _streams: HashMap<String, TcpSocksStream> = HashMap();
-//  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
-  private val executorService : ThreadPoolExecutor = ThreadPoolExecutor(4,4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>());
+  private val _serviceHandlers: HashMap<String, HiddenServiceHandler> = HashMap();
+
+  //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+  private val executorService: ThreadPoolExecutor =
+    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
 
   /**
@@ -124,24 +149,33 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     method: String,
     jsonBody: String,
     headers: ReadableMap,
+    // FIXME move this to startDeamon call
     trustAllSSl: Boolean,
     promise: Promise
   ) {
     if (service == null) {
       promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+      return;
     }
 
-    var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
-      .proxy(proxy)
-      .connectTimeout(10, TimeUnit.SECONDS)
-      .writeTimeout(10, TimeUnit.SECONDS)
-      .readTimeout(10, TimeUnit.SECONDS)
-      .build()
+//    if(_client !is OkHttpClient){
+//       _client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
+//        .proxy(proxy)
+//        .connectTimeout(10, TimeUnit.SECONDS)
+//        .writeTimeout(10, TimeUnit.SECONDS)
+//        .readTimeout(10, TimeUnit.SECONDS)
+//        .build()
+//    }
+
+    if(_client !is OkHttpClient){
+      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
+      return;
+    }
 
     val param = TaskParam(method, url, jsonBody, headers.toHashMap())
     executorService.execute {
       try {
-        val task = TorBridgeRequest(promise, client, param);
+        val task = TorBridgeRequest(promise, _client!!, param);
         task.run()
       } catch (e: Exception) {
         Log.d("TorBridge", "error on request: $e")
@@ -155,9 +189,11 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   fun startDaemon(timeoutMs: Double, promise: Promise) {
     if (service != null) {
       promise.reject(Throwable("Service already running, call stopDaemon first"))
+      return;
     }
     if (this._starting) {
       promise.reject(Throwable("Service already starting"))
+      return;
     }
     _starting = true;
     executorService.execute {
@@ -169,10 +205,18 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
           service = it
           proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
           _starting = false;
+
+          _client = getUnsafeOkHttpClient()
+            .proxy(proxy)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build();
+
           promise.resolve(socksPort);
         }, {
           _starting = false;
-          promise.reject(it);
+          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
         }).run();
 
       } catch (e: Exception) {
@@ -243,7 +287,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         throw Throwable("Tor Service not running, call startDaemon first")
       }
       var stream = _streams[connId]
-          ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
+        ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
       stream.send_data(msg, timeoutSec.toLong());
       promise.resolve(true);
     } catch (e: Exception) {
@@ -264,5 +308,82 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       Log.d("TorBridge", "error on stopTcpConn for connection Id $connId : $e")
       promise.reject(e)
     }
+  }
+
+  @ReactMethod
+  fun createHiddenService(
+    hiddenServicePort: Int,
+    destinationPort: Int,
+    secretKey: String,
+    promise: Promise
+  ) {
+    try {
+      if (service == null) {
+        promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+        return;
+      }
+      val serviceDetails =
+        service!!.create_hidden_service(destinationPort,hiddenServicePort, secretKey);
+
+      val result = HashMap<Any?, Any?>();
+
+      result.set("onionUrl", serviceDetails.get_onion_url());
+      result.set("secretKey", serviceDetails.get_secret_b64());
+
+      promise.resolve(JSONObject(result).toString());
+
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on createHiddenService : $e")
+      promise.reject(e)
+    }
+  }
+  @ReactMethod
+  fun deleteHiddenService(
+    onion: String,
+    promise: Promise
+  ) {
+    try {
+      if (service == null) {
+        promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+        return;
+      }
+      service!!.delete_hidden_service(onion);
+
+      promise.resolve(true);
+
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on deleteHiddenService : $e")
+      promise.reject(e)
+    }
+  }
+
+  @ReactMethod
+  fun startHttpHiddenserviceHandler(port: Int, promise: Promise) {
+    try {
+      val uuid = UUID.randomUUID();
+      val serviceId = uuid.toString();
+      val serviceHandler = HiddenServiceHandler(
+        port,
+        HttpHandlerObserverEmitter(serviceId, this.reactApplicationContext, _serviceHandlers)
+      );
+      _serviceHandlers.set(serviceId, serviceHandler);
+      promise.resolve(serviceId);
+    } catch (e: Exception) {
+      Log.d("TorBridge", "error on startHttpHiddenserviceHandler : $e")
+      promise.reject(e)
+    }
+
+    @ReactMethod
+    fun stopHttpHiddenserviceHandler(id: String, promise: Promise) {
+      try {
+        _serviceHandlers.remove(id)?.delete();
+        promise.resolve(true);
+      } catch (e: Exception) {
+        Log.d("TorBridge", "error on stopHttpHiddenserviceHandler for connection Id $id : $e")
+        promise.reject(e)
+      }
+
+    }
+
   }
 }

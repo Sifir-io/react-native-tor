@@ -67,8 +67,11 @@ interface ProcessedRequestResponse extends RequestResponse {}
  */
 interface NativeTor {
   startDaemon(timeoutMs: number): Promise<SocksPortNumber>;
+
   stopDaemon(): Promise<void>;
+
   getDaemonStatus(): Promise<string>;
+
   request<T extends RequestMethod>(
     url: string,
     method: T,
@@ -76,21 +79,143 @@ interface NativeTor {
     headers: RequestHeaders,
     trustInvalidSSL: boolean
   ): Promise<RequestResponse>;
+
   startTcpConn(target: string, timeoutMs: number): Promise<string>;
+
   sendTcpConnMsg(
     target: string,
     msg: string,
     timeoutSeconds: number
   ): Promise<boolean>;
+
   stopTcpConn(target: string): Promise<boolean>;
+
+  createHiddenService(
+    hiddenServicePort: number,
+    destinationPort: number,
+    secretKey?: string
+  ): Promise<HiddenServiceParam>;
+
+  deleteHiddenService(onion: string): Promise<boolean>;
+
+  startHttpHiddenserviceHandler(port: number): Promise<String>;
+  stopHttpHiddenserviceHandler(id: number): Promise<boolean>;
 }
 
+/**
+ * HiddenServiceDataHandler data handler.
+ * If err is populated then there was an error
+ */
+type HiddenServiceDataHandler = (
+  data?: HttpServiceRequest,
+  err?: string
+) => void;
+
+/**
+ * Data returned when createHiddenService is called
+ * @field onionUrl The public url (with the port) that can be used to access this hidden service (note you must call startHttpService before you can actually get any data)
+   @field secretKey Base64 encoded ESCDA private key for this service. *DO NOT* share this key and store it securely. This key can be used to restore the hidden service by anyone!
+ */
+interface HiddenServiceParam {
+  onionUrl: string;
+  secretKey: string;
+}
+
+/**
+ * Data provided by the HTTP server attached to a hidden service
+ */
+interface HttpServiceRequest {
+  method: RequestMethod;
+  headers: { [header: string]: string };
+  body: string;
+  version: number;
+  path: string;
+}
+
+const _createHiddenService = async (
+  hiddenServicePort: number,
+  destinationPort: number,
+  secretKey?: string
+): Promise<HiddenServiceParam> => {
+  let hiddenServiceJson = await NativeModules.TorBridge.createHiddenService(
+    hiddenServicePort,
+    destinationPort,
+    secretKey ?? ''
+  );
+  console.log('RnTor:CreateHiddenService', hiddenServiceJson);
+  return JSON.parse(hiddenServiceJson);
+};
+
+const _deleteHiddenService = async (onion: string): Promise<boolean> => {
+  await NativeModules.TorBridge.deleteHiddenService(onion);
+  return true;
+};
+const _startHttpService = async (
+  port: number,
+  cb: HiddenServiceDataHandler
+) => {
+  let serviceId = await NativeModules.TorBridge.startHttpHiddenserviceHandler(
+    port
+  );
+
+  const lsnr_handle: EmitterSubscription[] = [];
+  /**
+   * Handles errors from Tcp Connection
+   * Mainly check for EOF (connection closed/end of stream) and removes lnsers
+   */
+  const onError = async (event: string) => {
+    console.error('RNTor:HttpServiceHandler:', event);
+    cb(undefined, event);
+  };
+  const onData = async (event: string) => {
+    const httpRequest: HttpServiceRequest = JSON.parse(event);
+    console.log('RNTor:HttpServiceHandler', httpRequest);
+    cb(httpRequest, undefined);
+  };
+
+  if (Platform.OS === 'android') {
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${serviceId}-data`, (event) => {
+        onData(event);
+      })
+    );
+    lsnr_handle.push(
+      DeviceEventEmitter.addListener(`${serviceId}-error`, async (event) => {
+        await onError(event);
+      })
+    );
+  } else if (Platform.OS === 'ios') {
+    const emitter = new NativeEventEmitter(NativeModules.TorBridge);
+    lsnr_handle.push(
+      emitter.addListener(`hsServiceHttpHandlerRequest`, (event) => {
+        const [uuid, data] = event.split('||', 2);
+        if (serviceId === uuid) {
+          onData(data);
+        }
+      })
+    );
+
+    lsnr_handle.push(
+      emitter.addListener(`hsServiceHttpHandlerError`, async (event) => {
+        const [uuid, data] = event.split('||', 2);
+        if (serviceId === uuid) {
+          await onError(data);
+        }
+      })
+    );
+  }
+  const close = () => {
+    lsnr_handle.map((e) => e.remove());
+    return NativeModules.TorBridge.stopHttpHiddenserviceHandler(serviceId);
+  };
+  return { close };
+};
+//-----------
 /**
  * Tcpstream data handler.
  * If err is populated then there was an error
  */
 type TcpConnDatahandler = (data?: string, err?: string) => void;
-
 /**
  * Interface returned by createTcpConnection factory
  */
@@ -331,6 +456,9 @@ type TorType = {
    * See createTcpConnectio;
    */
   createTcpConnection: typeof createTcpConnection;
+  createHiddenService: typeof _createHiddenService;
+  deleteHiddenService: typeof _deleteHiddenService;
+  startHttpService: typeof _startHttpService;
 };
 
 const TorBridge: NativeTor = NativeModules.TorBridge;
@@ -513,5 +641,8 @@ export default ({
     request: TorBridge.request,
     getDaemonStatus: TorBridge.getDaemonStatus,
     createTcpConnection,
+    createHiddenService: _createHiddenService,
+    deleteHiddenService: _deleteHiddenService,
+    startHttpService: _startHttpService,
   } as TorType;
 };

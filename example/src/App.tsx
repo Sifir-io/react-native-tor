@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, View, Text, Button, TextInput } from 'react-native';
+import { StyleSheet, View, Text, Button, TextInput, Alert } from 'react-native';
 import TorBridge from 'react-native-tor';
 
 type Await<T> = T extends PromiseLike<infer U> ? U : T;
@@ -14,6 +14,13 @@ export default function App() {
   const [onion, setOnion] = React.useState<string | undefined>(
     'http://3g2upl4pq6kufc4m.onion'
   );
+  const [hiddenServicePort, setHiddenServicePort] = React.useState(20000);
+  const [
+    hiddenServiceDestinationPort,
+    setHiddenServiceDestinationPort,
+  ] = React.useState(20011);
+  const [hiddenServiceKey, setHiddenServiceKey] = React.useState('');
+  const [hiddenServiceOnion, setHiddenServiceOnion] = React.useState('');
   const [hasStream, setHasStream] = React.useState(false);
   const [
     streamConnectionTimeoutMS,
@@ -140,6 +147,7 @@ export default function App() {
         </Button>
         {!!socksPort && (
           <View>
+            {/* Onion */}
             <TextInput
               style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
               onChangeText={setOnion}
@@ -148,6 +156,61 @@ export default function App() {
             <Button onPress={getOnion} title="Get onion" />
             <Button onPress={postOnion} title="POST onion" />
             <Button onPress={startTcpStream} title="Start Tcp Stream" />
+            {/* HS */}
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServicePort(Number(v))}
+              value={hiddenServicePort.toString()}
+            />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServiceDestinationPort(Number(v))}
+              value={hiddenServiceDestinationPort.toString()}
+            />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServiceKey(v)}
+              value={hiddenServiceKey}
+            />
+            <TextInput
+              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              onChangeText={(v) => setHiddenServiceOnion(v)}
+              value={hiddenServiceOnion}
+            />
+            <Button
+              onPress={async () => {
+                const hs = await client.createHiddenService(
+                  hiddenServicePort,
+                  hiddenServiceDestinationPort,
+                  hiddenServiceKey.length ? hiddenServiceKey.trim() : ''
+                );
+                setHiddenServiceKey(hs.secretKey);
+                setHiddenServiceOnion(hs.onionUrl);
+              }}
+              title="Create HS"
+            />
+            <Button
+              disabled={hiddenServiceOnion?.length < 1}
+              onPress={async () => {
+                await client.deleteHiddenService(hiddenServiceOnion);
+              }}
+              title="Delete Hidden Serivce"
+            />
+            <Button
+              onPress={() => {
+                client.startHttpService(
+                  hiddenServiceDestinationPort,
+                  (d, e) => {
+                    Alert.alert(
+                      `Got HTTP ${e ? 'Error' : 'Request'} `,
+                      `${JSON.stringify(d)} ${JSON.stringify(e)}`
+                    );
+                  }
+                );
+              }}
+              title="Start HTTP server"
+            />
+            {/* Streams */}
             <TextInput
               style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
               onChangeText={(x) => setStreamConnectionTimeoutMS(Number(x))}

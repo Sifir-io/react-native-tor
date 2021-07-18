@@ -34,6 +34,20 @@ typedef struct Observer {
   void (*on_err)(char*, const void*);
 } Observer;
 
+typedef struct BoxedResult_____c_char {
+  char **result;
+  struct ResultMessage message;
+} BoxedResult_____c_char;
+
+typedef struct BoxedResult_HiddenServiceHandler {
+  HiddenServiceHandler *result;
+  struct ResultMessage message;
+} BoxedResult_HiddenServiceHandler;
+
+/**
+ * Starts env logger
+ */
+void start_logger(void);
 
 struct BoxedResult_OwnedTorService *get_owned_TorService(const char *data_dir,
                                                          uint16_t socks_port,
@@ -69,6 +83,28 @@ struct ResultMessage *tcp_stream_send_msg(TcpSocksStream *stream_ptr,
 
 /**
  *# Safety
+ * Creates a Hidden service returning it's secret/public key
+ */
+struct BoxedResult_____c_char *create_hidden_service(OwnedTorService *owned_client,
+                                                     uint16_t dst_port,
+                                                     uint16_t hs_port,
+                                                     const char *secret_key);
+
+/**
+ *# Safety
+ * Deletes a Hidden service
+ */
+struct ResultMessage *delete_hidden_service(OwnedTorService *owned_client, const char *onion);
+
+/**
+ *# Safety
+ * Starts an HTTP request server on dst_port calling the observer with data
+ */
+struct BoxedResult_HiddenServiceHandler *start_http_hidden_service_handler(uint16_t dst_port,
+                                                                           struct Observer observer);
+
+/**
+ *# Safety
  * Destroy and release TcpSocksStream which will drop the connection
  */
 void tcp_stream_destroy(TcpSocksStream *stream);
@@ -84,3 +120,9 @@ void destroy_cstr(char *c_str);
  * Destroy and release ownedTorBox which will shut down owned connection and shutdown daemon
  */
 void shutdown_owned_TorService(OwnedTorService *owned_client);
+
+/**
+ *# Safety
+ * Destroy and release HiddenServiceHandler
+ */
+void destroy_hidden_service_handler(HiddenServiceHandler *hs_handler);
