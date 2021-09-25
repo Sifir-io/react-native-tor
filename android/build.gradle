@@ -8,7 +8,7 @@ buildscript {
   }
 
   dependencies {
-    classpath 'com.android.tools.build:gradle:3.2.1'
+    classpath('com.android.tools.build:gradle:4.1.2')
     // noinspection DifferentKotlinGradleVersion
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
   }
@@ -31,11 +31,27 @@ android {
   defaultConfig {
     minSdkVersion rootProject.ext.has('minSdkVersion') ? rootProject.ext.minSdkVersion : 16
     targetSdkVersion getExtOrIntegerDefault('targetSdkVersion')
-    versionCode 1
-    versionName "1.0"
-
+    externalNativeBuild {
+      cmake {
+        cppFlags "-fexceptions", "-frtti", "-std=c++1y", "-DONANDROID"
+        abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+        arguments '-DANDROID_STL=c++_shared', "-DNODE_MODULES_DIR=${rootDir}/../node_modules"
+      }
+    }
+  }
+  buildFeatures {
+    prefab true
   }
 
+  packagingOptions {
+    exclude("**/libfbjni.so")
+    exclude("**/libc++_shared.so")
+  }
+  externalNativeBuild {
+    cmake {
+      path "CMakeLists.txt"
+    }
+  }
   buildTypes {
     release {
       minifyEnabled false
@@ -48,8 +64,22 @@ android {
     sourceCompatibility JavaVersion.VERSION_1_8
     targetCompatibility JavaVersion.VERSION_1_8
   }
+  dependencies {
+    implementation 'com.facebook.fbjni:fbjni:0.2.2'
+  }
+//  applicationVariants.all { variant ->
+//    variant.getruntimeconfiguration().exclude module: 'fbjni-java-only-0.0.3.jar'
+//  }
 }
 
+//configurations {
+//  all*.exclude module: 'fbjni-java-only'
+//}
+configurations.all {
+  resolutionStrategy.dependencySubstitution {
+    substitute module('com.facebook.fbjni:fbjni-java-only:0.0.3') with module('com.facebook.fbjni:fbjni:0.2.2')
+  }
+}
 repositories {
   mavenCentral()
   jcenter()
@@ -63,8 +93,8 @@ repositories {
     defaultDir = rootProject.ext.get('reactNativeAndroidRoot')
   } else {
     defaultDir = new File(
-            projectDir,
-            '/../../../node_modules/react-native/android'
+      projectDir,
+      '/../../../node_modules/react-native/android'
     )
   }
 
@@ -84,13 +114,13 @@ repositories {
       parentDir = parentDir.parentFile
 
       def androidSourcesDir = new File(
-              parentDir,
-              'node_modules/react-native'
+        parentDir,
+        'node_modules/react-native'
       )
 
       def androidPrebuiltBinaryDir = new File(
-              parentDir,
-              'node_modules/react-native/android'
+        parentDir,
+        'node_modules/react-native/android'
       )
 
       if (androidPrebuiltBinaryDir.exists()) {
@@ -115,8 +145,8 @@ repositories {
 
   if (!found) {
     throw new GradleException(
-            "${project.name}: unable to locate React Native android sources. " +
-                    "Ensure you have you installed React Native as a dependency in your project and try again."
+      "${project.name}: unable to locate React Native android sources. " +
+        "Ensure you have you installed React Native as a dependency in your project and try again."
     )
   }
 }
