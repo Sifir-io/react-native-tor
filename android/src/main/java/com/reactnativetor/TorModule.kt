@@ -13,13 +13,11 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Proxy;
 import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
 import org.json.JSONObject
 import java.util.UUID;
 import java.util.concurrent.*
+import javax.net.ssl.*
 
 
 /**
@@ -112,7 +110,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     return OkHttpClient.Builder()
       .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-      .hostnameVerifier { _, _ -> true }
+      .hostnameVerifier(HostnameVerifier { _: String, _: SSLSession -> true })
   }
 
   override fun getName(): String {
@@ -387,3 +385,5 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
   }
 }
+
+
