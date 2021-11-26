@@ -7,11 +7,13 @@ import com.facebook.react.ReactApplication;
 import com.facebook.react.ReactNativeHost;
 import com.facebook.react.ReactPackage;
 import com.facebook.react.ReactInstanceManager;
+import com.facebook.react.bridge.JSIModulePackage;
 import com.facebook.soloader.SoLoader;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
-import com.reactnativetor.TorPackage;
+//import com.reactnativetor.TorPackage;
+import com.reactnativetor.TorModulePackage;
 
 public class MainApplication extends Application implements ReactApplication {
 
@@ -28,9 +30,14 @@ public class MainApplication extends Application implements ReactApplication {
           List<ReactPackage> packages = new PackageList(this).getPackages();
           // Packages that cannot be autolinked yet can be added manually here, for TorExample:
           // packages.add(new MyReactNativePackage());
-          packages.add(new TorPackage());
+//          packages.add(new TorPackage());
 
           return packages;
+        }
+
+        @Override
+        protected JSIModulePackage getJSIModulePackage() {
+          return new TorModulePackage();
         }
 
         @Override

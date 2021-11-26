@@ -71,6 +71,7 @@ class HttpHandlerObserverEmitter(
   }
 }
 
+
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
   private var _client: OkHttpClient? = null;
   private var service: OwnedTorService? = null;
@@ -83,6 +84,18 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   private val executorService: ThreadPoolExecutor =
     ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
+  private external fun nativeInstall(jsi:Long);
+
+  fun installLib(reactContext:JavaScriptContextHolder)
+  {
+    if (reactContext.get().toInt() != 0) {
+      this.nativeInstall(
+        reactContext.get()
+      );
+    } else {
+      Log.e("TorBridge", "JSI Runtime is not available in debug mode");
+    }
+  }
 
   /**
    * Gets a client that accepts all SSL certs
