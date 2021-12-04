@@ -24,27 +24,35 @@ sealed class RequestResult {
 }
 
 class TorBridgeRequest constructor(
-  protected var mPromise: Promise?,
+  protected var mPromise: (r:RequestResult)->Unit?,
   protected var client: OkHttpClient,
   protected val param: TaskParam
 ) {
 
-  protected fun onPostExecute(result: RequestResult?) {
-    when (result) {
-      is RequestResult.Error -> {
-        if (result.error !== null) {
-          mPromise!!.reject(result.message, result.error);
-        } else if (result.result != null) {
-          mPromise!!.reject(result.message, Throwable(result.message + ": " + result.result));
-        }
-      }
-      is RequestResult.Success -> mPromise!!.resolve(result.result)
-      else -> mPromise!!.reject(
-        "Unable to process RequestResult",
-        "RequestResult Exhaustive Clause"
-      )
-    }
-    mPromise = null
+  protected fun onPostExecute(result: RequestResult) {
+      mPromise(result);
+  //  when (result) {
+  //    //is RequestResult.Error -> {
+  //    //  if (result.error !== null) {
+  //    //    mPromise(result.message);
+////    //      mPromise!!.reject(result.message, result.error);
+  //    //  } else if (result.result != null) {
+  //    //    mPromise(result.message);
+////    //      mPromise!!.reject(result.message, Throwable(result.message + ": " + result.result));
+  //    //  }
+  //    //}
+  //    ////is RequestResult.Success -> mPromise!!.resolve(result.result)
+  //    ////else -> mPromise!!.reject(
+  //    ////  "Unable to process RequestResult",
+  //    ////  "RequestResult Exhaustive Clause"
+  //    ////)
+  //    //is RequestResult.Success -> mPromise(result.result)
+  //    //else -> mPromise(
+  //    //  "Unable to process RequestResult",
+  //    //  "RequestResult Exhaustive Clause"
+  //    //)
+  //  }
+//    mPromise = null
   }
 
 

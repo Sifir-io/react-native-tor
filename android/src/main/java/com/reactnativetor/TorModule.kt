@@ -3,6 +3,7 @@ package com.reactnativetor
 import android.content.Context
 import android.util.Log
 import com.facebook.react.bridge.*
+import com.facebook.react.module.annotations.ReactModule
 import com.sifir.tor.DataObserver
 import com.sifir.tor.OwnedTorService
 import com.sifir.tor.TcpSocksStream
@@ -72,7 +73,17 @@ class HttpHandlerObserverEmitter(
 }
 
 
+@ReactModule(name = TorModule.NAME)
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+  companion object {
+    const val NAME: String = "TorBridge"
+  }
+
+  init {
+    System.loadLibrary("react-native-tor-cpp");
+    System.loadLibrary("sifir_android")
+  }
+
   private var _client: OkHttpClient? = null;
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
@@ -84,10 +95,11 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   private val executorService: ThreadPoolExecutor =
     ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
-  private external fun nativeInstall(jsi:Long);
+  private external fun nativeInstall(jsi: Long);
+  private external fun torCb(jsi: Long, cb_ptr: Long,ptr:Long);
 
-  fun installLib(reactContext:JavaScriptContextHolder)
-  {
+  fun installLib(reactContext: JavaScriptContextHolder) {
+    Log.e("TorBridge", "installLib called");
     if (reactContext.get().toInt() != 0) {
       this.nativeInstall(
         reactContext.get()
@@ -127,7 +139,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
   }
 
   override fun getName(): String {
-    return "TorBridge"
+    return NAME
   }
 
   private fun findFreePort(): Int {
@@ -154,18 +166,20 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     throw Throwable("Could not find a free TCP/IP port for Socks Proxy")
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun request(
     url: String,
     method: String,
     jsonBody: String,
-    headers: ReadableMap,
+//    headers: ReadableMap,
     // FIXME move this to startDeamon call
     trustAllSSl: Boolean,
-    promise: Promise
+    cbPtr: Long,
+  ptr:Long
   ) {
     if (service == null) {
-      promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+      torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
+//      promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
       return;
     }
 
@@ -178,33 +192,62 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 //        .build()
 //    }
 
-    if(_client !is OkHttpClient){
-      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
+    if (_client !is OkHttpClient) {
+//      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
+      torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
       return;
     }
 
-    val param = TaskParam(method, url, jsonBody, headers.toHashMap())
+    val hash = HashMap<String, Any>();
+    hash.set("222", 33)
+    val param = TaskParam(method, url, jsonBody, hash)
+//    val param = TaskParam(method, url, jsonBody, headers.toHashMap())
     executorService.execute {
       try {
-        val task = TorBridgeRequest(promise, _client!!, param);
+        val task = TorBridgeRequest({
+          when (it) {
+            is RequestResult.Error -> {
+              if (it.error !== null) {
+                torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
+//                mPromise(it.message);
+              } else if (it.result != null) {
+                torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
+//                  mPromise(it.message);
+              }
+            }
+            is RequestResult.Success -> {
+//                mPromise(it.result)
+              torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
+            }
+            else -> {
+              torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
+              //mPromise(
+              //  "Unable to process RequestResult",
+              //  "RequestResult Exhaustive Clause"
+              //)
+            }
+          }
+        }, _client!!, param);
         task.run()
       } catch (e: Exception) {
         Log.d("TorBridge", "error on request: $e")
-        promise.reject(e)
+        torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
+//        promise.reject(e)
       }
     }
   }
 
 
-  @ReactMethod
-  fun startDaemon(timeoutMs: Double, promise: Promise) {
+  //@ReactMethod
+//  fun startDaemon(timeoutMs: Double, promise: Promise) {
+  fun startDaemon(timeoutMs: Double, ptr:Long,cb: Long): Int {
     if (service != null) {
-      promise.reject(Throwable("Service already running, call stopDaemon first"))
-      return;
+//      promise.reject(Throwable("Service already running, call stopDaemon first"))
+      return -1;
     }
     if (this._starting) {
-      promise.reject(Throwable("Service already starting"))
-      return;
+//      promise.reject(Throwable("Service already starting"))
+      return -1;
     }
     _starting = true;
     executorService.execute {
@@ -224,20 +267,25 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             .readTimeout(10, TimeUnit.SECONDS)
             .build();
 
-          promise.resolve(socksPort);
+//          promise.resolve(socksPort);
+//          return socksPort;
+          torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
         }, {
           _starting = false;
-          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
+          torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
+//          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
         }).run();
 
       } catch (e: Exception) {
         Log.d("TorBridge", "error on startDaemon: $e")
-        promise.reject(e)
+//        promise.reject(e)
+        torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
       }
     }
+    return 1;
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun getDaemonStatus(promise: Promise) {
     if (_starting) {
       promise.resolve("STARTING");
@@ -252,7 +300,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     promise.resolve(status);
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun stopDaemon(promise: Promise) {
     try {
       service?.shutdown();
@@ -265,7 +313,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun startTcpConn(target: String, timeoutMs: Double, promise: Promise) {
     executorService.execute {
       try {
@@ -291,7 +339,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun sendTcpConnMsg(connId: String, msg: String, timeoutSec: Double, promise: Promise) {
     try {
       if (service == null) {
@@ -310,7 +358,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun stopTcpConn(connId: String, promise: Promise) {
     try {
       _streams.remove(connId)?.delete();
@@ -321,7 +369,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun createHiddenService(
     hiddenServicePort: Int,
     destinationPort: Int,
@@ -334,7 +382,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         return;
       }
       val serviceDetails =
-        service!!.create_hidden_service(destinationPort,hiddenServicePort, secretKey);
+        service!!.create_hidden_service(destinationPort, hiddenServicePort, secretKey);
 
       val result = HashMap<Any?, Any?>();
 
@@ -348,7 +396,8 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.reject(e)
     }
   }
-  @ReactMethod
+
+  //@ReactMethod
   fun deleteHiddenService(
     onion: String,
     promise: Promise
@@ -368,7 +417,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 
-  @ReactMethod
+  //@ReactMethod
   fun startHttpHiddenserviceHandler(port: Int, promise: Promise) {
     try {
       val uuid = UUID.randomUUID();
@@ -384,7 +433,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.reject(e)
     }
 
-    @ReactMethod
+    //@ReactMethod
     fun stopHttpHiddenserviceHandler(id: String, promise: Promise) {
       try {
         _serviceHandlers.remove(id)?.delete();

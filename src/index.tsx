@@ -13,6 +13,9 @@ type SocksPortNumber = number;
 export type RequestHeaders = { [header: string]: string } | {};
 export type ResponseHeaders = { [header: string]: string | string[] };
 
+// const TorBridge: NativeTor = NativeModules.TorBridge;
+const TorBridge: NativeTor = global.TorBridge as NativeTor;
+
 /**
  * Supported Request types
  * @todo PUT
@@ -66,7 +69,7 @@ interface ProcessedRequestResponse extends RequestResponse {}
  * Used internally, public calls should be made on the returned TorType
  */
 interface NativeTor {
-  startDaemon(timeoutMs: number): Promise<SocksPortNumber>;
+  startDaemon(timeoutMs: number, cb: (x: any) => void): number;
 
   stopDaemon(): Promise<void>;
 
@@ -77,7 +80,8 @@ interface NativeTor {
     method: T,
     data: string, // native side expects string for body
     headers: RequestHeaders,
-    trustInvalidSSL: boolean
+    trustInvalidSSL: boolean,
+    cb: (x: any) => void
   ): Promise<RequestResponse>;
 
   startTcpConn(target: string, timeoutMs: number): Promise<string>;
@@ -461,8 +465,6 @@ type TorType = {
   startHttpService: typeof _startHttpService;
 };
 
-const TorBridge: NativeTor = NativeModules.TorBridge;
-
 /**
  * Tor module factory function
  * @param stopDaemonOnBackground
@@ -516,7 +518,7 @@ export default ({
       lastAppState.match(/background/) &&
       nextAppState === 'active'
     ) {
-      const status = NativeModules.TorBridge.getDaemonStatus();
+      const status = TorBridge.getDaemonStatus();
       // Daemon should be in NOTINIT status if coming from background and this is enabled, so if not shutodwn and start again
       if (status !== 'NOTINIT') {
         await stopIfRunning();
@@ -528,7 +530,7 @@ export default ({
       lastAppState.match(/active/) &&
       nextAppState === 'background'
     ) {
-      const status = NativeModules.TorBridge.getDaemonStatus();
+      const status = TorBridge.getDaemonStatus();
       if (status !== 'NOTINIT') {
         await stopIfRunning();
       }
@@ -538,16 +540,19 @@ export default ({
 
   const startIfNotStarted = () => {
     if (!bootstrapPromise) {
-      bootstrapPromise = NativeModules.TorBridge.startDaemon(
-        bootstrapTimeoutMs
-      );
+      bootstrapPromise = new Promise((res, rej) => {
+        TorBridge.startDaemon(bootstrapTimeoutMs, (val) => {
+          console.log('goooood', val);
+          res(val);
+        });
+      });
     }
     return bootstrapPromise;
   };
   const stopIfRunning = async () => {
     console.warn('Stopping Tor daemon.');
     bootstrapPromise = undefined;
-    await NativeModules.TorBridge.stopDaemon();
+    await TorBridge.stopDaemon();
   };
 
   /**

@@ -11,10 +11,7 @@ import com.facebook.react.bridge.JavaScriptModule
 import android.content.pm.PackageManager
 
 class TorPackage : ReactPackage {
-
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    val manager = reactContext.getPackageManager();
-    System.loadLibrary("sifir_android")
     return Arrays.asList<NativeModule>(TorModule(reactContext))
   }
 

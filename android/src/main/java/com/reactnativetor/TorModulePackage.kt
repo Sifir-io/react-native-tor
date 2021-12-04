@@ -1,5 +1,6 @@
 package com.reactnativetor
 
+import android.util.Log
 import com.facebook.react.bridge.JSIModulePackage
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.JavaScriptContextHolder
@@ -7,11 +8,23 @@ import com.facebook.react.bridge.JSIModuleSpec
 import com.reactnativetor.TorModule
 
 class TorModulePackage : JSIModulePackage {
-    override fun getJSIModules(
-        reactApplicationContext: ReactApplicationContext,
-        jsContext: JavaScriptContextHolder
-    ): List<JSIModuleSpec<*>> {
-        reactApplicationContext.getNativeModule(TorModule::class.java)!!.installLib(jsContext)
-        return emptyList()
-    }
+  //init {
+  //  System.loadLibrary("react-native-tor-cpp");
+  //  System.loadLibrary("sifir_android")
+
+  //}
+
+//  private external fun nativeInstall(jsi: Long);
+
+  override fun getJSIModules(
+    reactApplicationContext: ReactApplicationContext,
+    jsContext: JavaScriptContextHolder
+  ): List<JSIModuleSpec<*>> {
+//    val jsiPtr = reactApplicationContext.javaScriptContextHolder.get();
+//    val tModule = reactApplicationContext.getNativeModule(TorModule::class.java)
+    val tModule =  TorModule(reactContext = reactApplicationContext)
+    tModule?.installLib(reactContext = jsContext);
+//    this.nativeInstall(jsiPtr);
+    return emptyList()
+  }
 }
