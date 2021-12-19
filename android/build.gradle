@@ -900,7 +900,7 @@ dependencies {
   implementation 'com.facebook.fbjni:fbjni:0.2.2'
 
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  compileOnly files('libs/sifir_android.aar')
+//  compileOnly files('libs/sifir_android.aar')
   extractHeaders("com.facebook.fbjni:fbjni:0.2.2:headers")
   extractSO("com.facebook.fbjni:fbjni:0.2.2")
 

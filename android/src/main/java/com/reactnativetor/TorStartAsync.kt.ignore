@@ -1,11 +1,11 @@
-package com.reactnativetor
+//package com.reactnativetor
 
 import android.os.AsyncTask
 import android.util.Log
 import com.facebook.react.bridge.*
 import java.io.IOException
-import com.sifir.tor.OwnedTorService
-import com.sifir.tor.TorServiceParam
+//import com.sifir.tor.OwnedTorService
+//import com.sifir.tor.TorServiceParam
 
 class StartParam(
   val socksPort: Int,
