@@ -71,9 +71,9 @@ interface ProcessedRequestResponse extends RequestResponse {}
 interface NativeTor {
   startDaemon(timeoutMs: number, cb: (x: any) => void): number;
 
-  stopDaemon(): Promise<void>;
+  stopDaemon(cb: (x: number) => void): Promise<number>;
 
-  getDaemonStatus(): Promise<string>;
+  getDaemonStatus(cb: (x: string) => void): Promise<string>;
 
   request<T extends RequestMethod>(
     url: string,
@@ -478,6 +478,7 @@ type TorType = {
  * @param os The OS the module is running on (Set automatically and is provided as an injectable for testing purposes)
  * @default The os the module is running on.
  */
+let bootstrapPromise: Promise<number> | undefined;
 export default ({
   stopDaemonOnBackground = true,
   startDaemonOnActive = false,
@@ -485,7 +486,6 @@ export default ({
   numberConcurrentRequests = 4,
   os = Platform.OS,
 } = {}): TorType => {
-  let bootstrapPromise: Promise<number> | undefined;
   let lastAppState: AppStateStatus = 'active';
   let _appStateLsnerSet: boolean = false;
 
@@ -512,13 +512,17 @@ export default ({
     );
   }
 
+  const getDaemonStatus = () => {
+    return new Promise((res, _) => TorBridge.getDaemonStatus((s) => res(s)));
+  };
   const _handleAppStateChange = async (nextAppState: AppStateStatus) => {
     if (
       startDaemonOnActive &&
       lastAppState.match(/background/) &&
       nextAppState === 'active'
     ) {
-      const status = TorBridge.getDaemonStatus();
+      // FIXME HERE THIS TO PROMISSE and own function
+      const status = await getDaemonStatus();
       // Daemon should be in NOTINIT status if coming from background and this is enabled, so if not shutodwn and start again
       if (status !== 'NOTINIT') {
         await stopIfRunning();
@@ -530,7 +534,7 @@ export default ({
       lastAppState.match(/active/) &&
       nextAppState === 'background'
     ) {
-      const status = TorBridge.getDaemonStatus();
+      const status = await getDaemonStatus();
       if (status !== 'NOTINIT') {
         await stopIfRunning();
       }
@@ -538,21 +542,26 @@ export default ({
     lastAppState = nextAppState;
   };
 
-  const startIfNotStarted = () => {
+  const startIfNotStarted = async (): Promise<number> => {
     if (!bootstrapPromise) {
-      bootstrapPromise = new Promise((res, rej) => {
-        TorBridge.startDaemon(bootstrapTimeoutMs, (val) => {
-          console.log('goooood', val);
-          res(val);
+      bootstrapPromise = new Promise<number>((res, rej) => {
+        const startResult = TorBridge.startDaemon(bootstrapTimeoutMs, (v) => {
+          console.log('resolved to ', v);
+          res(v);
         });
+        if (startResult < 0) {
+          rej('Error startingDaemon');
+        }
       });
     }
     return bootstrapPromise;
   };
-  const stopIfRunning = async () => {
+  const stopIfRunning = () => {
     console.warn('Stopping Tor daemon.');
     bootstrapPromise = undefined;
-    await TorBridge.stopDaemon();
+    return new Promise((res, rej) =>
+      TorBridge.stopDaemon((r) => (r === 1 ? res(true) : rej('Invalid return')))
+    );
   };
 
   /**
@@ -599,7 +608,16 @@ export default ({
       await startIfNotStarted();
       return await onAfterRequest(
         await requestQueueWrapper(() =>
-          TorBridge.request(url, RequestMethod.GET, '', headers || {}, trustSSL)
+          TorBridge.request(
+            url,
+            RequestMethod.GET,
+            '',
+            headers || {},
+            trustSSL,
+            (res) => {
+              console.log('request GET', res);
+            }
+          )
         )
       );
     },
@@ -617,7 +635,10 @@ export default ({
             RequestMethod.POST,
             body,
             headers || {},
-            trustSSL
+            trustSSL,
+            (res) => {
+              console.log('request POST', res);
+            }
           )
         )
       );
@@ -636,7 +657,10 @@ export default ({
             RequestMethod.DELETE,
             body || '',
             headers || {},
-            trustSSL
+            trustSSL,
+            (res) => {
+              console.log('request DELETE', res);
+            }
           )
         )
       );
@@ -644,7 +668,7 @@ export default ({
     startIfNotStarted,
     stopIfRunning,
     request: TorBridge.request,
-    getDaemonStatus: TorBridge.getDaemonStatus,
+    getDaemonStatus,
     createTcpConnection,
     createHiddenService: _createHiddenService,
     deleteHiddenService: _deleteHiddenService,

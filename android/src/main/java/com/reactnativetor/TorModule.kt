@@ -93,13 +93,18 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
   //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
   private val executorService: ThreadPoolExecutor =
-    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
+    ThreadPoolExecutor(2, 4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
   private external fun nativeInstall(jsi: Long);
-  private external fun torCb(jsi: Long, cb_ptr: Long,ptr:Long);
+  private external fun torCbInt(jsi: Long, ptr: Long, payload: Int);
+  private external fun torCbString(jsi: Long, ptr: Long, payload: String);
+  private external fun torCbMap(jsi: Long, ptr: Long, payload: WritableMap);
+  private external fun torErrCb(jsi: Long, ptr: Long, message: String);
 
   fun installLib(reactContext: JavaScriptContextHolder) {
-    Log.e("TorBridge", "installLib called");
+    Log.d(
+      "TorBridge", "->installLib"
+    );
     if (reactContext.get().toInt() != 0) {
       this.nativeInstall(
         reactContext.get()
@@ -166,21 +171,18 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     throw Throwable("Could not find a free TCP/IP port for Socks Proxy")
   }
 
-  //@ReactMethod
   fun request(
     url: String,
     method: String,
     jsonBody: String,
-//    headers: ReadableMap,
+    headers: HashMap<String, Any>?,
     // FIXME move this to startDeamon call
     trustAllSSl: Boolean,
-    cbPtr: Long,
-  ptr:Long
-  ) {
+    ptr: Long
+  ): Int {
+
     if (service == null) {
-      torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
-//      promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
-      return;
+      return -1;
     }
 
 //    if(_client !is OkHttpClient){
@@ -193,60 +195,67 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 //    }
 
     if (_client !is OkHttpClient) {
-//      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
-      torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
-      return;
+      return -1;
     }
 
-    val hash = HashMap<String, Any>();
-    hash.set("222", 33)
-    val param = TaskParam(method, url, jsonBody, hash)
-//    val param = TaskParam(method, url, jsonBody, headers.toHashMap())
+    val param = TaskParam(method, url, jsonBody, headers)
     executorService.execute {
       try {
         val task = TorBridgeRequest({
           when (it) {
             is RequestResult.Error -> {
               if (it.error !== null) {
-                torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
-//                mPromise(it.message);
+                torErrCb(
+                  this.reactApplicationContext.javaScriptContextHolder.get(),
+                  ptr,
+                  it.error.localizedMessage
+                );
               } else if (it.result != null) {
-                torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
-//                  mPromise(it.message);
+                torErrCb(
+                  this.reactApplicationContext.javaScriptContextHolder.get(),
+                  ptr,
+                  it.result.toString()
+                );
               }
             }
             is RequestResult.Success -> {
 //                mPromise(it.result)
-              torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
+              torCbMap(
+                this.reactApplicationContext.javaScriptContextHolder.get(),
+                ptr,
+                it.result
+              );
             }
             else -> {
-              torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr);
-              //mPromise(
-              //  "Unable to process RequestResult",
-              //  "RequestResult Exhaustive Clause"
-              //)
+              torErrCb(
+                this.reactApplicationContext.javaScriptContextHolder.get(),
+                ptr,
+                "Unable to process RequestResult"
+              );
             }
           }
         }, _client!!, param);
         task.run()
       } catch (e: Exception) {
         Log.d("TorBridge", "error on request: $e")
-        torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cbPtr,ptr)
-//        promise.reject(e)
+        torErrCb(
+          this.reactApplicationContext.javaScriptContextHolder.get(),
+          ptr,
+          e.localizedMessage
+        );
       }
     }
+    return 0;
   }
 
 
-  //@ReactMethod
-//  fun startDaemon(timeoutMs: Double, promise: Promise) {
-  fun startDaemon(timeoutMs: Double, ptr:Long,cb: Long): Int {
+  fun startDaemon(timeoutMs: Double, ptr: Long): Int {
     if (service != null) {
-//      promise.reject(Throwable("Service already running, call stopDaemon first"))
+      Log.e("TorBridge", "Service already running, call stopDaemon first")
       return -1;
     }
     if (this._starting) {
-//      promise.reject(Throwable("Service already starting"))
+      Log.e("TorBridge", "Service already starting")
       return -1;
     }
     _starting = true;
@@ -266,50 +275,68 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             .writeTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build();
-
-//          promise.resolve(socksPort);
-//          return socksPort;
-          torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
+          torCbInt(this.reactApplicationContext.javaScriptContextHolder.get(), ptr, socksPort)
         }, {
           _starting = false;
-          torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
+          Log.d("TorBridge", "Error starting Tor Daemon: $it")
+          torErrCb(
+            this.reactApplicationContext.javaScriptContextHolder.get(),
+            ptr,
+            it.localizedMessage
+          )
 //          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
         }).run();
 
       } catch (e: Exception) {
         Log.d("TorBridge", "error on startDaemon: $e")
-//        promise.reject(e)
-        torCb(this.reactApplicationContext.javaScriptContextHolder.get(), cb,ptr)
+        torErrCb(
+          this.reactApplicationContext.javaScriptContextHolder.get(), ptr, e.localizedMessage
+        )
       }
     }
     return 1;
   }
 
   //@ReactMethod
-  fun getDaemonStatus(promise: Promise) {
+  fun getDaemonStatus(ptr: Long): Int {
     if (_starting) {
-      promise.resolve("STARTING");
-      return;
+      torCbString(
+        this.reactApplicationContext.javaScriptContextHolder.get(),
+        ptr,
+        "STARTING"
+      )
+      return 0;
     }
     if (service == null) {
-      promise.resolve("NOTINIT");
-      return;
+      torCbString(
+        this.reactApplicationContext.javaScriptContextHolder.get(),
+        ptr,
+        "NOTINIT"
+      )
+      return 0;
     }
 
     val status = service?.get_status();
-    promise.resolve(status);
+    torCbString(
+      this.reactApplicationContext.javaScriptContextHolder.get(),
+      ptr,
+      status ?: "NA"
+    )
+    return 0
   }
 
   //@ReactMethod
-  fun stopDaemon(promise: Promise) {
+  fun stopDaemon(ptr: Long) {
     try {
       service?.shutdown();
       service = null
       proxy = null;
-      promise.resolve(true);
+      torCbInt(this.reactApplicationContext.javaScriptContextHolder.get(), ptr, 1);
     } catch (e: Exception) {
-      Log.d("TorBridge", "error on stopDaemon$e")
-      promise.reject(e)
+      Log.e("TorBridge", "error on stopDaemon$e")
+      torErrCb(
+        this.reactApplicationContext.javaScriptContextHolder.get(), ptr, e.localizedMessage
+      )
     }
   }
 
