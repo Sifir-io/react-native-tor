@@ -8,8 +8,13 @@ import com.facebook.react.bridge.JSIModuleSpec
 import com.reactnativetor.TorModule
 
 class TorModulePackage : JSIModulePackage {
+  // init {
+    // System.loadLibrary("sifir_android")
+  // }
   init {
-    System.loadLibrary("sifir_android")
+//    System.loadLibrary("sifir_android")
+    // System.loadLibrary("sifir_ios");
+    System.loadLibrary("react-native-tor-cpp");
   }
 
 //  private external fun nativeInstall(jsi: Long);

@@ -223,7 +223,7 @@ dependencies {
     implementation jscFlavor
   }
 
-  implementation files("../../../android/libs/sifir_android.aar")
+  // implementation files("../../../android/libs/sifir_android.aar")
   implementation project(':reactnativetor')
 }
 

@@ -604,6 +604,12 @@ android {
     sourceCompatibility JavaVersion.VERSION_1_8
     targetCompatibility JavaVersion.VERSION_1_8
   }
+  sourceSets {
+      main {
+          // let gradle pack the sifir lib
+          jniLibs.srcDirs = ['./libs']
+      }
+  }
 }
 
 task createNativeDepsDirectories {
@@ -900,7 +906,6 @@ dependencies {
   implementation 'com.facebook.fbjni:fbjni:0.2.2'
 
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-//  compileOnly files('libs/sifir_android.aar')
   extractHeaders("com.facebook.fbjni:fbjni:0.2.2:headers")
   extractSO("com.facebook.fbjni:fbjni:0.2.2")
 

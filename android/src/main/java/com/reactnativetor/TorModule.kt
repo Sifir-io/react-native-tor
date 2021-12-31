@@ -80,7 +80,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
   init {
 //    System.loadLibrary("sifir_android")
-    System.loadLibrary("react-native-tor-cpp");
+    // System.loadLibrary("react-native-tor-cpp");
   }
 
  // private var _client: OkHttpClient? = null;

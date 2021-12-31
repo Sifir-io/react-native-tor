@@ -4,6 +4,9 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-DFOLLY_NO_CONFIG=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -DFOLLY_HAVE_MEMRCHR=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_MOBILE=1")
 
+add_definitions(-DTOR_DAEMON)
+#add_compile_definitions(TOR_DAEMON)
+
 set(PACKAGE_NAME react-native-tor-cpp)
 set(BUILD_DIR ${CMAKE_SOURCE_DIR}/build)
 set(RN_SO_DIR "../node_modules/react-native/ReactAndroid/src/main/jni/first-party/react/jni")
@@ -24,32 +27,8 @@ add_library(${PACKAGE_NAME}
         ${NODE_MODULES_DIR}/react-native/ReactCommon/jsi/jsi/JSIDynamic.cpp
         ${NODE_MODULES_DIR}/react-native/ReactAndroid/src/main/java/com/facebook/react/turbomodule/core/jni/ReactCommon/CallInvokerHolder.cpp
         ${TURBOMODULE_DIR}/TurboModule.cpp
-        ../cpp/c_DataObserver.h
-        ../cpp/c_HiddenServiceHandler.h
-        ../cpp/c_Logger.h
-        ../cpp/c_OwnedTorService.h
-        ../cpp/c_TcpSocksStream.h
-        ../cpp/c_TorHiddenService.h
-        ../cpp/c_TorServiceParam.h
-        ../cpp/rust_result4232mut3232c_voidCRustString.h
-        ../cpp/rust_slice.h
-        ../cpp/rust_slice_mut.h
-        ../cpp/rust_str.h
-        ../cpp/rust_vec.h
-        ../cpp/rust_void_ok_resultCRustString.h
-        ../cpp/DataObserver.hpp
-        ../cpp/empty.cpp
-        ../cpp/HiddenServiceHandler.hpp
-        ../cpp/Logger.hpp
-        ../cpp/OwnedTorService.hpp
-        ../cpp/rust_foreign_slice_impl.hpp
-        ../cpp/rust_foreign_slice_iter.hpp
-        ../cpp/rust_foreign_vec_impl.hpp
-        ../cpp/rust_slice_tmpl.hpp
-        ../cpp/rust_vec_impl.hpp
-        ../cpp/TcpSocksStream.hpp
-        ../cpp/TorHiddenService.hpp
-        ../cpp/TorServiceParam.hpp
+        ../cpp/sifir-tor.h
+        ../cpp/sifir-typedef.h
         cpp-adapter.cpp
         )
 
@@ -70,8 +49,15 @@ target_include_directories(
         ${BUILD_DIR}/third-party-ndk/folly
         ${BUILD_DIR}/third-party-ndk/glog/exported
         ${PROJECT_SOURCE_DIR}/../cpp
+	${PROJECT_SOURCE_DIR}/../android/libs/${ANDROID_ABI}
 )
 
+find_library(
+	SIFIR_LIB
+	sifir_ios
+ 	PATHS ${PROJECT_SOURCE_DIR}/../android/libs/${ANDROID_ABI}
+        NO_CMAKE_FIND_ROOT_PATH
+)
 find_library(
         FOLLY_JSON_LIB
         folly_json
@@ -91,5 +77,5 @@ target_link_libraries(${PACKAGE_NAME}
         log
         ${FOLLY_JSON_LIB}
         ${GLOG_LIB}
-        ${PROJECT_SOURCE_DIR}/libs/bin/${CMAKE_ANDROID_ARCH_ABI}/libsifir_android.so
+	${SIFIR_LIB}
         )

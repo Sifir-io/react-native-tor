@@ -4,20 +4,18 @@
 #include "pthread.h"
 #include<unordered_map>
 #include <android/log.h>
-#include <c_TorServiceParam.h>
-#include <TorServiceParam.hpp>
-#include <c_OwnedTorService.h>
-#include <OwnedTorService.hpp>
+#include <sifir-tor.h>
+#include <sifir-typedef.h>
 
 using namespace facebook;
 using namespace std;
-using namespace sifir_lib;
+using namespace libsifir;
 
 JavaVM *java_vm;
 jclass java_class;
 jobject java_object;
 unordered_map<long, shared_ptr<jsi::Function>> cb_map;
-OwnedTorService *service;
+libsifir::BoxedResult<OwnedTorService>  *service;
 
 /**
  * A simple callback function that allows us to detach current JNI Environment
@@ -176,10 +174,6 @@ void install(facebook::jsi::Runtime &jsiRuntime) {
 
                 __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
                                     "->startDaemon");
-                JNIEnv *jniEnv = GetJniEnv();
-                java_class = jniEnv->GetObjectClass(java_object);
-                jmethodID get = jniEnv->GetMethodID(java_class, "startDaemon",
-                                                    "(DJ)I");
                 // FIXME add methods to get app path and get port
 
                 double timeout = arguments[0].getNumber();
@@ -188,12 +182,8 @@ void install(facebook::jsi::Runtime &jsiRuntime) {
                 // increase ref count and store in map
                 auto *ptr = cb_ptr.get();
                 cb_map[reinterpret_cast<long>(ptr)] = cb_ptr;
-                auto param = TorServiceParam(
-                        "//data/user/0/com.example.reactnativetor/cache/sifir_sdk/tor/", 41943,
-                        timeout);
-                 service = new OwnedTorService(move(param));
-                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
-                                    "<-startDaemon");
+		auto service = get_owned_TorService("//data/user/0/com.example.reactnativetor/cache/sifir_sdk/tor/", 41943, timeout);
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp", "<-startDaemon");
                 return jsi::Value(42);
             });
 
