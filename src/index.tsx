@@ -71,9 +71,9 @@ interface ProcessedRequestResponse extends RequestResponse {}
 interface NativeTor {
   startDaemon(timeoutMs: number, cb: (x: any) => void): number;
 
-  stopDaemon(): Promise<void>;
+  stopDaemon(cb: (x: number) => void): Promise<number>;
 
-  getDaemonStatus(): Promise<string>;
+  getDaemonStatus(): string;
 
   request<T extends RequestMethod>(
     url: string,
@@ -448,7 +448,7 @@ type TorType = {
    * DONE - Daemon has completed boostraing and socks proxy is ready to be used to route traffic.
    * <other> - A status returned directly by the Daemon that can indicate a transient state or error.
    */
-  getDaemonStatus(): Promise<string>;
+  getDaemonStatus(): string;
   /**
    * Accessor the Native request function
    * Should not be used unless you know what you are doing.
@@ -518,6 +518,7 @@ export default ({
       lastAppState.match(/background/) &&
       nextAppState === 'active'
     ) {
+      // FIXME HERE THIS TO PROMISSE and own function
       const status = TorBridge.getDaemonStatus();
       // Daemon should be in NOTINIT status if coming from background and this is enabled, so if not shutodwn and start again
       if (status !== 'NOTINIT') {
@@ -538,21 +539,26 @@ export default ({
     lastAppState = nextAppState;
   };
 
-  const startIfNotStarted = () => {
+  const startIfNotStarted = async (): Promise<number> => {
     if (!bootstrapPromise) {
-      bootstrapPromise = new Promise((res, rej) => {
-        TorBridge.startDaemon(bootstrapTimeoutMs, (val) => {
-          console.log('goooood', val);
-          res(val);
+      bootstrapPromise = new Promise<number>((res, rej) => {
+        const startResult = TorBridge.startDaemon(bootstrapTimeoutMs, (v) => {
+          console.log('resolved to ', v);
+          res(v);
         });
+        if (startResult < 0) {
+          rej('Error startingDaemon');
+        }
       });
     }
     return bootstrapPromise;
   };
-  const stopIfRunning = async () => {
+  const stopIfRunning = () => {
     console.warn('Stopping Tor daemon.');
     bootstrapPromise = undefined;
-    await TorBridge.stopDaemon();
+    return new Promise((res, rej) =>
+      TorBridge.stopDaemon((r) => (r === 1 ? res(true) : rej('Invalid return')))
+    );
   };
 
   /**
@@ -599,7 +605,16 @@ export default ({
       await startIfNotStarted();
       return await onAfterRequest(
         await requestQueueWrapper(() =>
-          TorBridge.request(url, RequestMethod.GET, '', headers || {}, trustSSL)
+          TorBridge.request(
+            url,
+            RequestMethod.GET,
+            '',
+            headers || {},
+            trustSSL,
+            (res) => {
+              console.log('request GET', res);
+            }
+          )
         )
       );
     },
@@ -617,7 +632,10 @@ export default ({
             RequestMethod.POST,
             body,
             headers || {},
-            trustSSL
+            trustSSL,
+            (res) => {
+              console.log('request POST', res);
+            }
           )
         )
       );
@@ -636,7 +654,10 @@ export default ({
             RequestMethod.DELETE,
             body || '',
             headers || {},
-            trustSSL
+            trustSSL,
+            (res) => {
+              console.log('request DELETE', res);
+            }
           )
         )
       );

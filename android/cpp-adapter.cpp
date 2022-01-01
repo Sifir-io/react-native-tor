@@ -15,7 +15,7 @@ JavaVM *java_vm;
 jclass java_class;
 jobject java_object;
 unordered_map<long, shared_ptr<jsi::Function>> cb_map;
-libsifir::BoxedResult<OwnedTorService>  *service;
+OwnedTorService *service;
 
 /**
  * A simple callback function that allows us to detach current JNI Environment
@@ -176,22 +176,96 @@ void install(facebook::jsi::Runtime &jsiRuntime) {
                                     "->startDaemon");
                 // FIXME add methods to get app path and get port
 
+
+                if (service) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_ERROR, "react_tor_cpp",
+                                        "Daemon already running! stopDaemon first");
+                    return jsi::Value(-1);
+                }
                 double timeout = arguments[0].getNumber();
                 shared_ptr<jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
                         move(arguments[1].getObject(runtime).asFunction(runtime)));
                 // increase ref count and store in map
                 auto *ptr = cb_ptr.get();
                 cb_map[reinterpret_cast<long>(ptr)] = cb_ptr;
-		auto service = get_owned_TorService("//data/user/0/com.example.reactnativetor/cache/sifir_sdk/tor/", 41943, timeout);
-                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp", "<-startDaemon");
-                return jsi::Value(42);
-            });
+                auto result = get_owned_TorService(
+                        "//data/user/0/com.example.reactnativetor/cache/sifir_sdk/tor/", 41944,
+                        timeout);
 
+                if (result->message.tag == ResultMessage_Tag::Success) {
+
+                    service = result->result;
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "<-startDaemon");
+                    if (ptr->isFunction(runtime)) {
+                        __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                            "-- calling cb");
+                        ptr->call(runtime, 41943);
+                    }
+
+                    return jsi::Value(0);
+                } else {
+                    // TODO return error message
+                    return jsi::Value(-1);
+                }
+            }
+    );
+
+
+    auto stopDaemon = jsi::Function::createFromHostFunction(jsiRuntime,
+                                                            jsi::PropNameID::forAscii(jsiRuntime,
+                                                                                      "stopDaemon"),
+                                                            1, [](jsi::Runtime &runtime,
+                                                                  const jsi::Value &thisValue,
+                                                                  const jsi::Value *arguments,
+                                                                  size_t count) -> jsi::Value {
+
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "->stopDaemon");
+
+                if (!service) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "Service not init! Start deamon first");
+                    return jsi::Value(-1);
+                }
+                shared_ptr<jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
+                        move(arguments[0].getObject(runtime).asFunction(runtime)));
+                // increase ref count and store in map
+                libsifir::shutdown_owned_TorService(service);
+                service = nullptr;
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "<-stopDaemon");
+                return jsi::Value(0);
+            });
+    auto getDaemonStatus = jsi::Function::createFromHostFunction(jsiRuntime,
+                                                                 jsi::PropNameID::forAscii(
+                                                                         jsiRuntime,
+                                                                         "getDaemonStatus"),
+                                                                 1, [](jsi::Runtime &runtime,
+                                                                       const jsi::Value &thisValue,
+                                                                       const jsi::Value *arguments,
+                                                                       size_t count) -> jsi::Value {
+
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "->getDaemonStatus");
+                if (!service) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "Service not init! Start deamon first");
+                    return jsi::Value(jsi::String::createFromAscii(runtime, "NOTINIT"));
+                }
+                auto status = libsifir::get_status_of_owned_TorService(service);
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "<-getDaemonStatus");
+                return jsi::Value(jsi::String::createFromAscii(runtime, status));
+            });
     jsi::Object module = jsi::Object(jsiRuntime);
 
     module.setProperty(jsiRuntime, "startDaemon", move(startDaemon));
+    module.setProperty(jsiRuntime, "stopDaemon", move(stopDaemon));
+    module.setProperty(jsiRuntime, "getDaemonStatus", move(getDaemonStatus));
     module.setProperty(jsiRuntime, "request", move(request));
     jsiRuntime.global().setProperty(jsiRuntime, "TorBridge", move(module));
+
 }
 
 extern "C"
