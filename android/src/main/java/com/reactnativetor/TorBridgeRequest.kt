@@ -1,4 +1,4 @@
-// package com.reactnativetor
+package com.reactnativetor
 
 import android.util.Base64
 import android.util.Log

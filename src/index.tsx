@@ -603,20 +603,34 @@ export default ({
   return {
     async get(url: string, headers?: Headers, trustSSL: boolean = true) {
       await startIfNotStarted();
-      return await onAfterRequest(
-        await requestQueueWrapper(() =>
-          TorBridge.request(
-            url,
-            RequestMethod.GET,
-            '',
-            headers || {},
-            trustSSL,
-            (res) => {
-              console.log('request GET', res);
-            }
-          )
+      return new Promise((res, rej) =>
+        TorBridge.request(
+          url,
+          RequestMethod.GET,
+          '',
+          headers || {},
+          trustSSL,
+          (result) => {
+            console.log('request GET', res);
+            res(result);
+          }
         )
       );
+
+      //return await onAfterRequest(
+      //  await requestQueueWrapper(() =>
+      //    TorBridge.request(
+      //      url,
+      //      RequestMethod.GET,
+      //      '',
+      //      headers || {},
+      //      trustSSL,
+      //      (res) => {
+      //        console.log('request GET', res);
+      //      }
+      //    )
+      //  )
+      //);
     },
     async post(
       url: string,

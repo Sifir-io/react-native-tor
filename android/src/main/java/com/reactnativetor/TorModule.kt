@@ -20,7 +20,7 @@ import java.util.concurrent.*
 import javax.net.ssl.*
 
 
-///**
+///*b*
 // * Wraps DataObserver interface into event emitter
 // * Sent across FFI and will emit on data based on target-data or target-error topic
 // */
@@ -83,16 +83,16 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     // System.loadLibrary("react-native-tor-cpp");
   }
 
- // private var _client: OkHttpClient? = null;
+  private var _client: OkHttpClient? = null;
  // private var service: OwnedTorService? = null;
- // private var proxy: Proxy? = null;
+  private var proxy: Proxy? = null;
  // private var _starting: Boolean = false;
  // private var _streams: HashMap<String, TcpSocksStream> = HashMap();
  // private val _serviceHandlers: HashMap<String, HiddenServiceHandler> = HashMap();
 
   //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
-  //private val executorService: ThreadPoolExecutor =
-  //  ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
+  private val executorService: ThreadPoolExecutor =
+    ThreadPoolExecutor(4, 4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
   private external fun nativeInstall(jsi: Long);
   private external fun torCbInt(jsi: Long, ptr: Long, payload: Int);
@@ -112,63 +112,139 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
   }
 //
-//  /**
-//   * Gets a client that accepts all SSL certs
-//   * TODO Not sure how i feel about this but seems to be the only way
-//   * to accept self signed certs for onion urls
-//   * if anyone knows of a better way please PR this.
-//   */
-//  private fun getUnsafeOkHttpClient(): OkHttpClient.Builder {
-//    // Create a trust manager that does not validate certificate chains
-//    val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-//      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-//      }
-//
-//      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
-//      }
-//
-//      override fun getAcceptedIssuers() = arrayOf<X509Certificate>()
-//    })
-//
-//    // Install the all-trusting trust manager
-//    val sslContext = SSLContext.getInstance("SSL")
-//    sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-//    // Create an ssl socket factory with our all-trusting manager
-//    val sslSocketFactory = sslContext.socketFactory
-//
-//    return OkHttpClient.Builder()
-//      .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-//      .hostnameVerifier(HostnameVerifier { _: String, _: SSLSession -> true })
-//  }
-//
+  /**
+   * Gets a client that accepts all SSL certs
+   * TODO Not sure how i feel about this but seems to be the only way
+   * to accept self signed certs for onion urls
+   * if anyone knows of a better way please PR this.
+   */
+  private fun getUnsafeOkHttpClient(): OkHttpClient.Builder {
+    // Create a trust manager that does not validate certificate chains
+    val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+      override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+      }
+
+      override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+      }
+
+      override fun getAcceptedIssuers() = arrayOf<X509Certificate>()
+    })
+
+    // Install the all-trusting trust manager
+    val sslContext = SSLContext.getInstance("SSL")
+    sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+    // Create an ssl socket factory with our all-trusting manager
+    val sslSocketFactory = sslContext.socketFactory
+
+    return OkHttpClient.Builder()
+      .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+      .hostnameVerifier(HostnameVerifier { _: String, _: SSLSession -> true })
+  }
+
   override fun getName(): String {
     return NAME
   }
-//
-//  private fun findFreePort(): Int {
-//    var socket: ServerSocket? = null
-//    try {
-//      socket = ServerSocket(0)
-//      socket.reuseAddress = true
-//      val port = socket.localPort
-//      try {
-//        socket.close()
-//      } catch (e: IOException) {
-//        // Ignore IOException on close()
-//      }
-//      return port
-//    } catch (e: IOException) {
-//    } finally {
-//      if (socket != null) {
-//        try {
-//          socket.close()
-//        } catch (e: IOException) {
-//        }
-//      }
-//    }
-//    throw Throwable("Could not find a free TCP/IP port for Socks Proxy")
-//  }
-//
+
+  fun findFreePort(): Int {
+    var socket: ServerSocket? = null
+    try {
+      socket = ServerSocket(0)
+      socket.reuseAddress = true
+      val port = socket.localPort
+      try {
+        socket.close()
+      } catch (e: IOException) {
+        // Ignore IOException on close()
+      }
+      return port
+    } catch (e: IOException) {
+    } finally {
+      if (socket != null) {
+        try {
+          socket.close()
+        } catch (e: IOException) {
+        }
+      }
+    }
+    throw Throwable("Could not find a free TCP/IP port for Socks Proxy")
+  }
+
+
+
+  fun request(
+    url: String,
+    method: String,
+    jsonBody: String,
+    headers: HashMap<String, Any>?,
+    // TODO move this to startDeamon call
+    trustAllSSl: Boolean,
+    socksPort: Int,
+    ptr: Long
+  ): Int {
+
+        Log.d("TorBridge", "->Request")
+    if(_client !is OkHttpClient){
+	proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
+       _client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
+        .proxy(proxy)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
+      .readTimeout(10, TimeUnit.SECONDS)
+       .build()
+
+    }
+    val param = TaskParam(method, url, jsonBody, headers)
+        Log.d("TorBridge", "Request:execute")
+    executorService.execute {
+      try {
+        val task = TorBridgeRequest({
+          when (it) {
+            is RequestResult.Error -> {
+              if (it.error !== null) {
+                torErrCb(
+                  this.reactApplicationContext.javaScriptContextHolder.get(),
+                  ptr,
+                  it.error.localizedMessage
+                );
+              } else if (it.result != null) {
+                torErrCb(
+                  this.reactApplicationContext.javaScriptContextHolder.get(),
+                  ptr,
+                  it.result.toString()
+                );
+              }
+            }
+            is RequestResult.Success -> {
+//                mPromise(it.result)
+              torCbMap(
+                this.reactApplicationContext.javaScriptContextHolder.get(),
+                ptr,
+                it.result
+              );
+            }
+            else -> {
+              torErrCb(
+                this.reactApplicationContext.javaScriptContextHolder.get(),
+                ptr,
+                "Unable to process RequestResult"
+              );
+            }
+          }
+        }, _client!!, param);
+        task.run()
+      } catch (e: Exception) {
+	      // FIXME HERE break point ?? Is it Tor that's failing
+        Log.d("TorBridge", "error on request: $e")
+        torErrCb(
+          this.reactApplicationContext.javaScriptContextHolder.get(),
+          ptr,
+          e.localizedMessage
+        );
+      }
+    }
+    return 0;
+  }
+
 //  //@ReactMethod
 //  fun request(
 //    url: String,

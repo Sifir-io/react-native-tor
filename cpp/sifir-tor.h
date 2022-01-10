@@ -8,6 +8,14 @@
 namespace libsifir {
 #endif // __cplusplus
 
+#if defined(TOR_DAEMON)
+typedef struct Observer {
+  void *context;
+  void (*on_success)(char*, const void*);
+  void (*on_err)(char*, const void*);
+} Observer;
+#endif
+
 typedef enum ResultMessage_Tag {
   Success,
   Error,
@@ -31,14 +39,6 @@ typedef struct BoxedResult_TcpSocksStream {
   TcpSocksStream *result;
   struct ResultMessage message;
 } BoxedResult_TcpSocksStream;
-
-#if defined(TOR_DAEMON)
-typedef struct Observer {
-  void *context;
-  void (*on_success)(char*, const void*);
-  void (*on_err)(char*, const void*);
-} Observer;
-#endif
 
 typedef struct BoxedResult_____c_char {
   char **result;
@@ -68,6 +68,18 @@ typedef struct BoxedResult_bool {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ *# Safety
+ * Init the platform's logger
+ */
+void init_logger(void);
+
+/**
+ *# Safety
+ * Init the platform's logger
+ */
+void get(uint16_t socks_port, const char *url, struct Observer observer);
 
 /**
  * Starts env logger

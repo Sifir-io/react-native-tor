@@ -11,7 +11,7 @@ export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
   const [trustSSL, setTrustSSL] = React.useState<boolean>(true);
   const [onion, setOnion] = React.useState<string | undefined>(
-    'http://3g2upl4pq6kufc4m.onion'
+    'http://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion'
   );
   const [hiddenServicePort, setHiddenServicePort] = React.useState(20000);
   const [hiddenServiceDestinationPort, setHiddenServiceDestinationPort] =
@@ -28,9 +28,13 @@ export default function App() {
   const _init = async () => {
     try {
       // Init and do a few basic calls to test all is good
-      console.log('App init');
-      await client.startIfNotStarted();
-      console.log('App Post init');
+      console.log('App init tests');
+      const socks = await client.startIfNotStarted();
+      console.log('App init setting socks port to ', socksPort);
+      console.log('App Sock Status', client.getDaemonStatus());
+      setSocksPort(socks);
+      await getOnion();
+      console.log('App Sock Status post', client.getDaemonStatus());
     } catch (err) {
       console.error('Error starting daemon', err);
       await client.stopIfRunning();

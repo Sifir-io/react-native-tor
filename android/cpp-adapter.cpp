@@ -6,6 +6,8 @@
 #include <android/log.h>
 #include <sifir-tor.h>
 #include <sifir-typedef.h>
+#include <thread>
+#include <future>
 
 using namespace facebook;
 using namespace std;
@@ -15,7 +17,9 @@ JavaVM *java_vm;
 jclass java_class;
 jobject java_object;
 unordered_map<long, shared_ptr<jsi::Function>> cb_map;
+unordered_map<long, shared_ptr<std::function<void(char *payload)>>> fn_wrapper;
 OwnedTorService *service;
+int socks_port = 41945;
 
 /**
  * A simple callback function that allows us to detach current JNI Environment
@@ -108,6 +112,44 @@ static string jstring2string(JNIEnv *env, jstring jStr) {
     return ret;
 }
 
+static jobject jsObjectToJStringHashMap(JNIEnv *env, jsi::Runtime &rt, const jsi::Object &obj) {
+    auto fields = obj.getPropertyNames(rt);
+    jsize map_len = fields.size(rt);
+
+    auto classMap = env->FindClass("java/util/HashMap");
+    // java_class = env->GetObjectClass(classMap);
+    jmethodID init = env->GetMethodID(classMap, "<init>", "(I)V");
+    jobject hashMap = env->NewObject(classMap, init, map_len);
+    jmethodID put = env->GetMethodID(classMap, "put",
+                                     "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    for (int i = 0; i < fields.size(rt); i++) {
+        auto field_name = fields.getValueAtIndex(rt, i).asString(rt);
+        auto value = obj.getProperty(rt, field_name).asString(rt);
+        __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                            "->JNI");
+        env->CallObjectMethod(hashMap, put, string2jstring(env, field_name.utf8(rt)),
+                              string2jstring(env, value.utf8(rt)));
+    }
+    return hashMap;
+}
+
+static void torCbString(long cb_index, const void *jsi, char *payload) {
+    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp", "->torCbString");
+
+    auto cb = cb_map[cb_index];
+
+    void *q = const_cast<void *>(jsi);
+    auto runtime = reinterpret_cast<jsi::Runtime *>(q);
+
+    if (cb->isFunction(*runtime)) {
+        __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                            "-- calling cb");
+        cb->call(*runtime, jsi::String::createFromUtf8(*runtime, payload));
+    } else {
+        __android_log_write(android_LogPriority::ANDROID_LOG_ERROR, "react_tor_cpp", "not cb!");
+    }
+    cb_map.erase(cb_index);
+}
 
 void install(facebook::jsi::Runtime &jsiRuntime) {
     auto request = jsi::Function::createFromHostFunction(jsiRuntime,
@@ -118,52 +160,121 @@ void install(facebook::jsi::Runtime &jsiRuntime) {
                                                                const jsi::Value *arguments,
                                                                size_t count) -> jsi::Value {
 
-                JNIEnv *jniEnv = GetJniEnv();
-                java_class = jniEnv->GetObjectClass(java_object);
-                jmethodID get = jniEnv->GetMethodID(java_class, "request",
-                                                    "(DLjava/lang/String;JJ)I");
-
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "->request");
+                if (!service) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_ERROR, "react_tor_cpp",
+                                        "Daemon not running! startDaemon first");
+                    return jsi::Value(-1);
+                }
                 string url = arguments[0].getString(runtime).utf8(runtime);
-                string method = arguments[1].getString(runtime).utf8(runtime);
-                string jsonBody = arguments[2].getString(runtime).utf8(runtime);
-//                auto requestHeaders = arguments[3].getObject(runtime).asHostObject(runtime);
-                bool trustAllSSl = arguments[4].getBool();
-                // cb_map["bar"] = move(arguments[5].getObject(runtime).getHostObject(runtime));
-                int result = jniEnv->CallIntMethod(java_object, get, string2jstring(jniEnv, url),
-                                                   string2jstring(jniEnv, method),
-                                                   string2jstring(jniEnv, jsonBody),
-                                                   true,
-//                                                   requestHeaders,
-                                                   string2jstring(jniEnv, "bar"));
-                return jsi::Value();
+
+                shared_ptr<jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
+                        arguments[5].getObject(runtime).asFunction(runtime));
+                auto *ptr = cb_ptr.get();
+                long cb_index = reinterpret_cast<long>(ptr);
+                cb_map[cb_index] = cb_ptr;
+
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "-request:callInMethod");
+                // HERE -- START OF OBSERVER
+                Observer observer = Observer();
+                // context capturing wrapper
+                shared_ptr<std::function<void(
+                        char *payload)>> success_ptr = make_shared<std::function<void(
+                        char *payload)>>([&runtime, cb_index](char *payload) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "->observer::wrapper");
+                    torCbString(cb_index, &runtime, payload);
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "<-observer::wrapper");
+                });
+                auto *wrapper_ptr = success_ptr.get();
+                long wrapper_index = reinterpret_cast<long>(wrapper_ptr);
+                fn_wrapper[wrapper_index] = success_ptr;
+
+                observer.context = wrapper_ptr;
+
+                auto on_err = [](char *payload, const void *stuff) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "-request:lamda got err paylaod");
+                };
+                auto on_success = [](char *payload, const void *stuff) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "->on_success");
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        payload);
+                    void *q = const_cast<void *>(stuff);
+                    long index = reinterpret_cast<long>(q);
+                    auto wrapper = fn_wrapper[index].get();
+                    (*wrapper)(payload);
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "<-on_success");
+                };
+                observer.on_err = on_err;
+                observer.on_success = on_success;
+                // EOF OBSERVER
+                libsifir::get(socks_port, url.c_str(), observer);
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "<-request");
+                return jsi::Value(0);
 
             });
-    //auto startDaemon = jsi::Function::createFromHostFunction(jsiRuntime,
-    //                                                         jsi::PropNameID::forAscii(jsiRuntime,
-    //                                                                                   "startDaemon"),
-    //                                                         2, [](jsi::Runtime &runtime,
-    //                                                               const jsi::Value &thisValue,
-    //                                                               const jsi::Value *arguments,
-    //                                                               size_t count) -> jsi::Value {
+    //auto request = jsi::Function::createFromHostFunction(jsiRuntime,
+    //                                                     jsi::PropNameID::forAscii(jsiRuntime,
+    //                                                                               "request"),
+    //                                                     6, [](jsi::Runtime &runtime,
+    //                                                           const jsi::Value &thisValue,
+    //                                                           const jsi::Value *arguments,
+    //                                                           size_t count) -> jsi::Value {
 
+    //            // FIXME here, maybe this is the one function we can reuse the local impl ?
+    //            // rather than having to package and rework all this into the rust..?
     //            __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
-    //                                "->startDaemon");
+    //                                "->request");
+    //            if (!service) {
+    //                __android_log_write(android_LogPriority::ANDROID_LOG_ERROR, "react_tor_cpp",
+    //                                    "Daemon not running! startDaemon first");
+    //                return jsi::Value(-1);
+    //            }
     //            JNIEnv *jniEnv = GetJniEnv();
     //            java_class = jniEnv->GetObjectClass(java_object);
-    //            jmethodID get = jniEnv->GetMethodID(java_class, "startDaemon",
-    //                                                "(DJ)I");
+    //            jmethodID get = jniEnv->GetMethodID(java_class, "request",
+    //                                                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/HashMap;ZIJ)I");
 
-    //            double timeout = arguments[0].getNumber();
+    //            jstring url = string2jstring(jniEnv, arguments[0].getString(runtime).utf8(runtime));
+    //            jstring method = string2jstring(jniEnv,
+    //                                            arguments[1].getString(runtime).utf8(runtime));
+    //            jstring jsonBody = string2jstring(jniEnv,
+    //                                              arguments[2].getString(runtime).utf8(runtime));
+    //            __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+    //                                "-request:prepareHeaders");
+    //            auto requestHeaders = jsObjectToJStringHashMap(jniEnv, runtime,
+    //                                                           arguments[3].getObject(runtime));
+    //            bool trustAllSSl = arguments[4].getBool();
     //            shared_ptr<jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
-    //                    move(arguments[1].getObject(runtime).asFunction(runtime)));
-    //            // increase ref count and store in map
+    //                    arguments[5].getObject(runtime).asFunction(runtime));
     //            auto *ptr = cb_ptr.get();
     //            cb_map[reinterpret_cast<long>(ptr)] = cb_ptr;
-    //            int result = jniEnv->CallIntMethod(java_object, get, timeout, ptr);
     //            __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
-    //                                "<-startDaemon");
+    //                                "-request:callInMethod");
+
+
+    //            int result = jniEnv->CallIntMethod(java_object, get,
+    //                                               url,
+    //                                               method,
+    //                                               jsonBody,
+    //                                               requestHeaders,
+    //                                               trustAllSSl,
+    //                                               socks_port,
+    //                                               ptr);
+    //            __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+    //                                "<-request");
     //            return jsi::Value(result);
+
     //        });
+
+
     auto startDaemon = jsi::Function::createFromHostFunction(jsiRuntime,
                                                              jsi::PropNameID::forAscii(jsiRuntime,
                                                                                        "startDaemon"),
@@ -182,32 +293,56 @@ void install(facebook::jsi::Runtime &jsiRuntime) {
                                         "Daemon already running! stopDaemon first");
                     return jsi::Value(-1);
                 }
-                double timeout = arguments[0].getNumber();
-                shared_ptr<jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
+                // get free port
+                JNIEnv *jniEnv = GetJniEnv();
+                java_class = jniEnv->GetObjectClass(java_object);
+                jmethodID get = jniEnv->GetMethodID(java_class, "findFreePort", "()I");
+
+                // set global here
+                socks_port = jniEnv->CallIntMethod(java_object, get);
+                __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                    "startDaemon::got socks port");
+
+                int timeout = arguments[0].getNumber();
+                shared_ptr <jsi::Function> cb_ptr = std::make_shared<jsi::Function>(
                         move(arguments[1].getObject(runtime).asFunction(runtime)));
                 // increase ref count and store in map
                 auto *ptr = cb_ptr.get();
-                cb_map[reinterpret_cast<long>(ptr)] = cb_ptr;
-                auto result = get_owned_TorService(
-                        "//data/user/0/com.example.reactnativetor/cache/sifir_sdk/tor/", 41944,
-                        timeout);
+                auto cb_index = reinterpret_cast<long>(ptr);
+                cb_map[cb_index] = cb_ptr;
 
+                std::promise<BoxedResult_OwnedTorService *> service_promise;
+                std::future<BoxedResult_OwnedTorService *> tor_future = service_promise.get_future();
+                auto handler = std::thread([](int sp, int to,
+                                              std::promise<BoxedResult_OwnedTorService *> &service_promise) {
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "- startDaemon::thread");
+                    auto r = get_owned_TorService("//data/user/0/com.example.reactnativetor", sp,
+                                                  to);
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "- startDaemon::thread::got service");
+                    service_promise.set_value(r);
+                    __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
+                                        "<- startDaemon::thread");
+                }, socks_port, timeout, std::ref(service_promise));
+
+                // await result
+                auto result = tor_future.get();
                 if (result->message.tag == ResultMessage_Tag::Success) {
-
                     service = result->result;
                     __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
                                         "<-startDaemon");
                     if (ptr->isFunction(runtime)) {
                         __android_log_write(android_LogPriority::ANDROID_LOG_DEBUG, "react_tor_cpp",
                                             "-- calling cb");
-                        ptr->call(runtime, 41943);
+                        ptr->call(runtime, jsi::Value(socks_port));
                     }
-
-                    return jsi::Value(0);
                 } else {
-                    // TODO return error message
-                    return jsi::Value(-1);
+                    // TODO return error message throw
+                    ptr->call(runtime, "balls");
                 }
+                handler.join();
+                return jsi::Value(-1);
             }
     );
 
@@ -277,6 +412,7 @@ Java_com_reactnativetor_TorModule_nativeInstall(JNIEnv *env, jobject thiz, jlong
     }
     env->GetJavaVM(&java_vm);
     java_object = env->NewGlobalRef(thiz);
+    libsifir::init_logger();
 }
 
 extern "C"
