@@ -133,9 +133,9 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
       .proxy(proxy)
-      .connectTimeout(10, TimeUnit.SECONDS)
-      .writeTimeout(10, TimeUnit.SECONDS)
-      .readTimeout(10, TimeUnit.SECONDS)
+      .connectTimeout(1, TimeUnit.MINUTES)
+      .writeTimeout(1, TimeUnit.MINUTES)
+      .readTimeout(1, TimeUnit.MINUTES)
       .build()
 
     val param = TaskParam(method, url, jsonBody, headers.toHashMap())
