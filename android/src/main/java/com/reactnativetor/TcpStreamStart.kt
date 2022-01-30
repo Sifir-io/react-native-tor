@@ -11,13 +11,13 @@ import com.sifir.tor.TorServiceParam
 class TcpStreamStart constructor(
   private val target: String,
   private val proxy:String,
-  private val timeoutMs:Long,
+  private val timeoutMs:Double,
   private val onSuccess: (stream: TcpSocksStream) -> Unit,
   private val onError: (e: Throwable) -> Unit
 ) {
   fun run() {
     try {
-      val stream = TcpSocksStream(target,proxy,timeoutMs);
+      val stream = TcpSocksStream(target,proxy,timeoutMs.toLong());
       onSuccess(stream);
     } catch (e: Error) {
       Log.d("TorBridge:TcpStream", "error $e")

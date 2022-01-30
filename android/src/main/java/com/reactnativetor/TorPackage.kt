@@ -15,7 +15,8 @@ class TorPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
     val manager = reactContext.getPackageManager();
     val ai = manager.getApplicationInfo(reactContext.packageName, PackageManager.GET_META_DATA);
-    System.load("${ai.nativeLibraryDir}/libsifir_android.so");
+    System.loadLibrary("sifir_android")
+//    System.load("${ai.nativeLibraryDir}/libsifir_android.so");
     return Arrays.asList<NativeModule>(TorModule(reactContext))
   }
 

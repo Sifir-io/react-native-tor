@@ -10,7 +10,7 @@ import com.sifir.tor.TorServiceParam
 class StartParam(
   val socksPort: Int,
   var path: String,
-  val timeoutMs: Long
+  val timeoutMs: Double
 );
 
 class TorBridgeStartAsync constructor(
@@ -21,7 +21,7 @@ class TorBridgeStartAsync constructor(
   fun run() {
     try {
       Log.d("TorBridge", "Starting Tor with ${param.path} ${param.socksPort} ${param.timeoutMs}")
-      val ownedTor = OwnedTorService(TorServiceParam(param.path, param.socksPort,param.timeoutMs));
+      val ownedTor = OwnedTorService(TorServiceParam(param.path, param.socksPort,param.timeoutMs.toLong()));
       onSuccess(ownedTor);
     } catch (e: Exception) {
       Log.d("TorBridge:StartAsync", "error onPostExecute$e")
