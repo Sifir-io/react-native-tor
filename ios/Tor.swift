@@ -41,6 +41,7 @@ class Tor: RCTEventEmitter {
     var starting:Bool = false;
     var streams:Dictionary<String,OpaquePointer> = [:];
     var hasLnser = false;
+    var clienTimeout:TimeInterval = 60;
     
     func getProxiedClient(headers:Optional<NSDictionary>,socksPort:UInt16,trustInvalidSSL: Bool = false)->URLSession{
         let config = URLSessionConfiguration.default;
@@ -50,7 +51,9 @@ class Tor: RCTEventEmitter {
         config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyHost as String] = "127.0.0.1";
         config.connectionProxyDictionary?[kCFStreamPropertySOCKSProxyPort as String] = socksPort;
         config.connectionProxyDictionary?[kCFProxyTypeSOCKS as String] = 1;
-        
+        config.timeoutIntervalForRequest = clienTimeout;
+        config.timeoutIntervalForResource = clienTimeout;
+
         if let headersPassed = headers {
             config.httpAdditionalHeaders = headersPassed as? [AnyHashable : Any]
         }
@@ -148,12 +151,13 @@ class Tor: RCTEventEmitter {
     }
     
     
-    @objc(startDaemon:resolver:rejecter:)
-    func startDaemon(timeoutMs:NSNumber, resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
+    @objc(startDaemon:clientTimeoutSec:resolver:rejecter:)
+    func startDaemon(timeoutMs:NSNumber, clientTimeoutSec:NSNumber, resolve: @escaping RCTPromiseResolveBlock,reject: @escaping RCTPromiseRejectBlock)->Void{
         if service != nil || starting {
             reject("TOR.START","Tor Service Already Running. Call `stopDaemon` first.",NSError.init(domain: "TOR.START", code: 01));
             return;
         }
+        clienTimeout = clientTimeoutSec.doubleValue;
         starting = true;
         do {
             
