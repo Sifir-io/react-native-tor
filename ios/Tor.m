@@ -5,6 +5,7 @@
 
 RCT_EXTERN_METHOD(
                   startDaemon:(nonnull NSNumber*)timeoutMs
+                  clientTimeoutSec:(nonnull NSNumber*)clientTimeoutSec
                   resolver:(RCTPromiseResolveBlock)resolver
                   rejecter: (RCTPromiseRejectBlock)reject
                   )
