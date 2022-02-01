@@ -1,24 +1,21 @@
 import * as React from 'react';
-import { StyleSheet, View, Text, Button, TextInput } from 'react-native';
+import {StyleSheet, View, Text, Button, TextInput} from 'react-native';
 import TorBridge from 'react-native-tor';
 
 type Await<T> = T extends PromiseLike<infer U> ? U : T;
 const client = TorBridge();
-let tcpStream: Await<
-  ReturnType<typeof client['createTcpConnection']>
-> | null = null;
+let tcpStream: Await<ReturnType<typeof client['createTcpConnection']>> | null =
+  null;
 
 export default function App() {
   const [socksPort, setSocksPort] = React.useState<number | undefined>();
   const [trustSSL, setTrustSSL] = React.useState<boolean>(true);
   const [onion, setOnion] = React.useState<string | undefined>(
-    'http://3g2upl4pq6kufc4m.onion'
+    'http://3g2upl4pq6kufc4m.onion',
   );
   const [hasStream, setHasStream] = React.useState(false);
-  const [
-    streamConnectionTimeoutMS,
-    setStreamConnectionTimeoutMS,
-  ] = React.useState(15000);
+  const [streamConnectionTimeoutMS, setStreamConnectionTimeoutMS] =
+    React.useState(15000);
   React.useEffect(() => {
     _init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,13 +79,13 @@ export default function App() {
       if (!onion) throw 'No onion detected';
       let resp = await client.post(
         onion,
-        JSON.stringify({ q: 'hello' }),
+        JSON.stringify({q: 'hello'}),
         {
           'Content-Type': 'application/json',
           // also supports
           // 'Content-Type': 'application/x-www-form-urlencoded',
         },
-        trustSSL
+        trustSSL,
       );
       console.log('got resp', resp);
     } catch (err) {
@@ -118,10 +115,10 @@ export default function App() {
         'kciybn4d4vuqvobdl2kdp3r2rudqbqvsymqwg4jomzft6m6gaibaf6yd.onion:50001';
       console.log('starting');
       const conn = await client.createTcpConnection(
-        { target, connectionTimeout: timeoutMs || streamConnectionTimeoutMS },
+        {target, connectionTimeout: timeoutMs || streamConnectionTimeoutMS},
         (data, err) => {
           console.log('tcp got msg', data, err);
-        }
+        },
       );
       console.log('after');
       tcpStream = conn;
@@ -156,7 +153,7 @@ export default function App() {
         {!!socksPort && (
           <View>
             <TextInput
-              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
+              style={{height: 40, borderColor: 'gray', borderWidth: 1}}
               onChangeText={setOnion}
               value={onion}
             />
@@ -167,8 +164,8 @@ export default function App() {
               title="Start Tcp Stream"
             />
             <TextInput
-              style={{ height: 40, borderColor: 'gray', borderWidth: 1 }}
-              onChangeText={(x) => setStreamConnectionTimeoutMS(Number(x))}
+              style={{height: 40, borderColor: 'gray', borderWidth: 1}}
+              onChangeText={x => setStreamConnectionTimeoutMS(Number(x))}
               value={String(streamConnectionTimeoutMS)}
             />
             {hasStream && (
