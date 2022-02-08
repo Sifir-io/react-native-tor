@@ -1,5 +1,6 @@
 package com.reactnativetor
 
+import android.content.Context
 import android.util.Log
 import com.facebook.react.bridge.*
 import com.sifir.tor.DataObserver
@@ -11,12 +12,11 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Proxy;
 import java.security.cert.X509Certificate
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 import com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter
+import org.json.JSONObject
 import java.util.UUID;
 import java.util.concurrent.*
+import javax.net.ssl.*
 
 
 /**
@@ -52,13 +52,17 @@ class DataObserverEmitter(
   }
 }
 
+
 class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+  private var _client: OkHttpClient? = null;
   private var service: OwnedTorService? = null;
   private var proxy: Proxy? = null;
   private var _starting: Boolean = false;
   private var _streams: HashMap<String, TcpSocksStream> = HashMap();
-//  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
-  private val executorService : ThreadPoolExecutor = ThreadPoolExecutor(4,4, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>());
+
+  //  private val executorService: ExecutorService = Executors.newFixedThreadPool(4)
+  private val executorService: ThreadPoolExecutor =
+    ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue<Runnable>(50));
 
 
   /**
@@ -87,7 +91,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     return OkHttpClient.Builder()
       .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-      .hostnameVerifier { _, _ -> true }
+      .hostnameVerifier(HostnameVerifier { _: String, _: SSLSession -> true })
   }
 
   override fun getName(): String {
@@ -124,24 +128,33 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     method: String,
     jsonBody: String,
     headers: ReadableMap,
+    // FIXME move this to startDeamon call
     trustAllSSl: Boolean,
     promise: Promise
   ) {
     if (service == null) {
       promise.reject(Throwable("Service Not Initialized!, Call startDaemon first"));
+      return;
     }
 
-    var client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
-      .proxy(proxy)
-      .connectTimeout(10, TimeUnit.SECONDS)
-      .writeTimeout(10, TimeUnit.SECONDS)
-      .readTimeout(10, TimeUnit.SECONDS)
-      .build()
+//    if(_client !is OkHttpClient){
+//       _client = (if (trustAllSSl) getUnsafeOkHttpClient() else OkHttpClient().newBuilder())
+//        .proxy(proxy)
+//        .connectTimeout(10, TimeUnit.SECONDS)
+//        .writeTimeout(10, TimeUnit.SECONDS)
+//        .readTimeout(10, TimeUnit.SECONDS)
+//        .build()
+//    }
+
+    if(_client !is OkHttpClient){
+      promise.reject(Throwable("Request http client not Initialized!, Call startDaemon first"));
+      return;
+    }
 
     val param = TaskParam(method, url, jsonBody, headers.toHashMap())
     executorService.execute {
       try {
-        val task = TorBridgeRequest(promise, client, param);
+        val task = TorBridgeRequest(promise, _client!!, param);
         task.run()
       } catch (e: Exception) {
         Log.d("TorBridge", "error on request: $e")
@@ -152,27 +165,38 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
 
   @ReactMethod
-  fun startDaemon(timeoutMs: Double, promise: Promise) {
+  fun startDaemon(timeoutMs: Double, clientTimeoutSeconds: Double, promise: Promise) {
+    Log.d("TorBridge", "->startDaemon")
     if (service != null) {
       promise.reject(Throwable("Service already running, call stopDaemon first"))
+      return;
     }
     if (this._starting) {
       promise.reject(Throwable("Service already starting"))
+      return;
     }
     _starting = true;
     executorService.execute {
       val socksPort = findFreePort();
       val path = this.reactApplicationContext.cacheDir.toString();
-      val param = StartParam(socksPort, path, timeoutMs.toLong())
+      val param = StartParam(socksPort, path, timeoutMs)
       try {
         TorBridgeStartAsync(param, {
           service = it
           proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("0.0.0.0", socksPort))
           _starting = false;
+
+          _client = getUnsafeOkHttpClient()
+            .proxy(proxy)
+            .connectTimeout(clientTimeoutSeconds.toLong(), TimeUnit.SECONDS)
+            .writeTimeout(clientTimeoutSeconds.toLong(), TimeUnit.SECONDS)
+            .readTimeout(clientTimeoutSeconds.toLong(), TimeUnit.SECONDS)
+            .build();
+
           promise.resolve(socksPort);
         }, {
           _starting = false;
-          promise.reject(it);
+          promise.reject("StartDaemon Error", "Error starting Tor Daemon", it);
         }).run();
 
       } catch (e: Exception) {
@@ -217,7 +241,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         if (service == null) {
           throw Exception("Tor service not running, call startDaemon first")
         }
-        TcpStreamStart(target, "0.0.0.0:${service?.socksPort}", timeoutMs.toLong(), {
+        TcpStreamStart(target, "0.0.0.0:${service?.socksPort}", timeoutMs, {
           // Assign UUID to connection to manage it
           val uuid = UUID.randomUUID();
           val connId = uuid.toString();
@@ -243,7 +267,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         throw Throwable("Tor Service not running, call startDaemon first")
       }
       var stream = _streams[connId]
-          ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
+        ?: throw Throwable("Stream for connectionId $connId is not initialized, call startTcpConn first");
       stream.send_data(msg, timeoutSec.toLong());
       promise.resolve(true);
     } catch (e: Exception) {
@@ -265,4 +289,7 @@ class TorModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
       promise.reject(e)
     }
   }
+
 }
+
+
